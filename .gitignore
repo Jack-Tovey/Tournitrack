@@ -8,6 +8,7 @@ riderModule.iml
 *.db-wal
 *.db-shm
 *.db-journal
+appsettings.json
 appsettings.Development.json
 *.user
 wwwroot/uploads/
