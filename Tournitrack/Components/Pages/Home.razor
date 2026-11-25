@@ -1,7 +1,93 @@
 ﻿@page "/"
+@using Microsoft.AspNetCore.Components.QuickGrid
+@using Microsoft.EntityFrameworkCore
+@using Tournitrack.Data.Models
 
-<PageTitle>Home</PageTitle>
+@inject IDbContextFactory<Tournitrack.Data.ApplicationDbContext> DbFactory
 
-<h1>Hello, world!</h1>
+<PageTitle>Index</PageTitle>
 
-Welcome to your new app.
+<h1>Hello!</h1>
+
+Welcome to Tournitrack, the only website/service you'll ever need for your tournament needs!.
+<br/>
+<br/>
+<h2>Upcoming Tournaments</h2>
+@* Displays Tournament Name, Location, Date, and a link to view details. Unless the SQL server is unreachable where it will display "Loading..."*@
+
+@if (isLoading)
+{
+    <div class="loading-screen">
+        <p>Loading...</p>
+    </div>
+}
+else if (tournaments == null)
+{
+    <p>Failed to load tournaments. Please try again later.</p>
+}
+else if (tournaments.Count == 0)
+{
+    <p>No upcoming tournaments</p>
+}
+else
+{
+    <QuickGrid Class="table" Items="tournaments.AsQueryable()">
+        <PropertyColumn Property="tournaments => tournaments.TournamentName" Title="Tournament Name"/>
+        <PropertyColumn Property="tournaments => tournaments.Location" Title="Location"/>
+        <PropertyColumn Property="tournaments => tournaments.TournamentDate.ToShortDateString()" Title="Date"/>
+        <TemplateColumn>
+            <a href="@($"TournamentInfo?TournamentID={context.ID}")">View Details</a>
+        </TemplateColumn>
+    </QuickGrid>
+}
+
+<SurveyPrompt Title="How is Tournitrack?" />
+
+<style>
+    .loading-screen {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        height: 100vh;
+        font-size: 1.5em;
+    }
+</style>
+
+@code {
+    private List<Tournaments>? tournaments;
+    private bool isLoading = true;
+    private const int MaxRetryCount = 5;
+    private const int RetryDelayMilliseconds = 2000;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadTournamentsWithRetryAsync();
+    }
+
+    private async Task LoadTournamentsWithRetryAsync()
+    {
+        int retryCount = 0;
+        while (retryCount < MaxRetryCount)
+        {
+            try
+            {
+                using var context = DbFactory.CreateDbContext();
+                var sql = "SELECT * FROM Tournaments WHERE TournamentDate > @p0 ORDER BY TournamentDate";
+                var currentDate = DateOnly.FromDateTime(DateTime.Now);
+                tournaments = context.Tournaments.FromSqlRaw(sql, currentDate).ToList();
+                isLoading = false;
+                break;
+            }
+            catch (Exception)
+            {
+                retryCount++;
+                if (retryCount >= MaxRetryCount)
+                {
+                    isLoading = false;
+                    break;
+                }
+                await Task.Delay(RetryDelayMilliseconds);
+            }
+        }
+    }
+}
