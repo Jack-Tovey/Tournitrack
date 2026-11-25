@@ -1,0 +1,106 @@
+﻿@*Title for Navigation Menu*@
+<div class="top-row ps-3 navbar navbar-dark">
+    <div class="container-fluid">
+        <a class="navbar-brand" href="">Tournitrack</a>
+        <button title="Navigation menu" class="navbar-toggler" @onclick="ToggleNavMenu">
+            <span class="navbar-toggler-icon"></span>
+        </button>
+    </div>
+</div>
+@*Menu items available to users who aren't logged in.*@
+@* Link to icons https://www.appstudio.dev/app/OpenIconic.html*@
+<div class="@NavMenuCssClass" @onclick="ToggleNavMenu">
+    <nav class="flex-column">
+        <div class="nav-item px-3">
+            <NavLink class="nav-link" href="" Match="NavLinkMatch.All">
+                <span class="oi oi-home" aria-hidden="true"></span> Home
+            </NavLink>
+        </div>
+        <div class="nav-item px-3">
+            <NavLink class="nav-link" href="matchschedule">
+                <span class="oi oi-calendar" aria-hiden="true"></span> Match Schedule
+            </NavLink>
+        </div>
+        @*Gives options to users who have authenticated (logged in)*@
+        <AuthorizeView>
+            <Authorized>
+                @*Gives options to people who have the role administration such as the Admin Control Panel which controls user accounts, the Teams Database management page and Tournament Database management page.*@
+                @if (@context.User.IsInRole("Administrator"))
+                {
+                    <div class="nav-item px-3">
+                        <NavLink class="nav-link" href="admin">
+                            <span class="oi oi-person" aria-hidden="true"></span> Admin Control Panel
+                        </NavLink>
+                    </div>
+                    <div class="nav-item px-3">
+                        <NavLink class="nav-link" href="crudmenu">
+                            <span class="oi oi-list" aria-hidden="true"></span> CRUD Menu
+                        </NavLink>
+                    </div>
+                }
+                @*Gives options to people who have the role TeamManager such as the Team Control Panel which controls the team's members*@
+                @if (@context.User.IsInRole("TeamManager") || @context.User.IsInRole("Administrator"))
+                {
+                    <div class="nav-item px-3">
+                        <NavLink class="nav-link" href="TBC">
+                            <span class="oi oi-people" aria-hidden="true"></span> Team Control Panel
+                        </NavLink>
+                    </div>
+                }
+                @*Gives options to people who have the role OfficialManager such as the Officials Control Panel which controls the officials and their appointments*@
+                @if (@context.User.IsInRole("OfficialManager") || @context.User.IsInRole("Administrator"))
+                {
+                    <div class="nav-item px-3">
+                        <NavLink class="nav-link" href="/Officials/ManageAvailability">
+                            <span class="oi oi-bell" aria-hidden="true"></span> Officials Control Panel
+                        </NavLink>
+                    </div>
+                }
+                @*Gives options to people who have the role Official such as the Appointments page which shows the appointments of the officials*@
+                @if (@context.User.IsInRole("Official") || context.User.IsInRole("Administrator") || context.User.IsInRole("OfficialManager"))
+                {
+                    <div class="nav-item px-3">
+                        <NavLink class="nav-link" href="TBC">
+                            <span class="oi oi-book" aria-hidden="true"></span> Appointments
+                        </NavLink>
+                    </div>
+                    <div class="nav-item px-3">
+                        <NavLink class="nav-link" href="/Officials/Availability">
+                            <span class="oi oi-clock" aria-hidden="true"></span> Manage Availability
+                        </NavLink>
+                    </div>
+                }
+                @*Gives options to people who have the role TournamentDirector such as the Tournament Generator and Club/Team Management page*@
+                @if (@context.User.IsInRole("TournamentDirector") || @context.User.IsInRole("Administrator"))
+                {
+                    <div class="nav-item px-3">
+                        <NavLink class="nav-link" href="generatetournament">
+                            <span class="oi oi-bar-chart" aria-hidden="true"></span> Tournament Generator
+                        </NavLink>
+                    </div>
+                    <div class="nav-item px-3">
+                        <NavLink class="nav-link" href="TournamentCentre">
+                            <span class="oi oi-bar-chart" aria-hidden="true"></span> Tournament Centre
+                        </NavLink>
+                    </div>
+                    <div class="nav-item px-3">
+                        <NavLink class="nav-link" href="ClubTeamManager">
+                            <span class="oi oi-bar-chart" aria-hidden="true"></span> Club/Team Manager
+                        </NavLink>
+                    </div>
+                }
+            </Authorized>
+        </AuthorizeView>
+    </nav>
+</div>
+
+@code {
+    private bool collapseNavMenu = true;
+
+    private string? NavMenuCssClass => collapseNavMenu ? "collapse" : null;
+
+    private void ToggleNavMenu()
+    {
+        collapseNavMenu = !collapseNavMenu;
+    }
+}
