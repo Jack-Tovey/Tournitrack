@@ -3,7 +3,10 @@
 @using Microsoft.EntityFrameworkCore
 @using Tournitrack.Data.Models
 
+@attribute [StreamRendering]
+
 @inject IDbContextFactory<Tournitrack.Data.ApplicationDbContext> DbFactory
+@inject ILogger<Home> Logger
 
 <PageTitle>Index</PageTitle>
 
@@ -13,12 +16,14 @@ Welcome to Tournitrack, the only website/service you'll ever need for your tourn
 <br/>
 <br/>
 <h2>Upcoming Tournaments</h2>
-@* Displays Tournament Name, Location, Date, and a link to view details. Unless the SQL server is unreachable where it will display "Loading..."*@
 
 @if (isLoading)
 {
-    <div class="loading-screen">
-        <p>Loading...</p>
+    <div class="card my-3" role="status" aria-live="polite">
+        <div class="card-body d-flex align-items-center gap-3">
+            <span class="spinner-border text-primary" aria-hidden="true"></span>
+            <span>Loading upcoming tournaments...</span>
+        </div>
     </div>
 }
 else if (tournaments == null)
@@ -43,51 +48,42 @@ else
 
 <SurveyPrompt Title="How is Tournitrack?" />
 
-<style>
-    .loading-screen {
-        display: flex;
-        justify-content: center;
-        align-items: center;
-        height: 100vh;
-        font-size: 1.5em;
-    }
-</style>
-
 @code {
     private List<Tournaments>? tournaments;
     private bool isLoading = true;
     private const int MaxRetryCount = 5;
     private const int RetryDelayMilliseconds = 2000;
 
-    protected override async Task OnInitializedAsync()
-    {
+    protected override async Task OnInitializedAsync() =>
         await LoadTournamentsWithRetryAsync();
-    }
 
     private async Task LoadTournamentsWithRetryAsync()
     {
-        int retryCount = 0;
-        while (retryCount < MaxRetryCount)
+        for (var attempt = 1; attempt <= MaxRetryCount; attempt++)
         {
             try
             {
                 using var context = DbFactory.CreateDbContext();
                 var sql = "SELECT * FROM Tournaments WHERE TournamentDate > @p0 ORDER BY TournamentDate";
                 var currentDate = DateOnly.FromDateTime(DateTime.Now);
-                tournaments = context.Tournaments.FromSqlRaw(sql, currentDate).ToList();
-                isLoading = false;
+
+                tournaments = await context.Tournaments
+                    .FromSqlRaw(sql, currentDate)
+                    .ToListAsync();
+
                 break;
             }
-            catch (Exception)
+            catch (Exception ex)
             {
-                retryCount++;
-                if (retryCount >= MaxRetryCount)
-                {
-                    isLoading = false;
+                Logger.LogWarning(ex, "Failed to load upcoming tournaments (attempt {Attempt}).", attempt);
+
+                if (attempt == MaxRetryCount)
                     break;
-                }
+
                 await Task.Delay(RetryDelayMilliseconds);
             }
         }
+
+        isLoading = false;
     }
 }
