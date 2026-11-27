@@ -1,0 +1,94 @@
+﻿@page "/tournamentofficials/create"
+@rendermode InteractiveServer
+@using Microsoft.EntityFrameworkCore
+@using Tournitrack.Data
+@using Tournitrack.Data.Models
+@inject IDbContextFactory<Tournitrack.Data.ApplicationDbContext> DbFactory
+@inject NavigationManager NavigationManager
+
+<PageTitle>Create</PageTitle>
+
+<h1>Create</h1>
+
+<h2>TournamentOfficials</h2>
+<hr />
+<div class="row">
+    <div class="col-md-4">
+        <!-- EditForm for creating a new TournamentOfficials entry -->
+        <EditForm method="post" Model="TournamentOfficials" OnValidSubmit="AddTournamentOfficials" FormName="create" Enhance>
+            <DataAnnotationsValidator />
+            <ValidationSummary class="text-danger" role="alert" />
+            <div class="mb-3">
+                <label for="tournamentid" class="form-label">TournamentID:</label>
+                <InputNumber id="tournamentid" @bind-Value="TournamentOfficials.TournamentID" class="form-control" />
+                <ValidationMessage For="() => TournamentOfficials.TournamentID" class="text-danger" />
+            </div>
+            <div class="mb-3">
+                <label for="userid" class="form-label">UserID:</label>
+                <!-- Dropdown for selecting a user with the Official role -->
+                <select id="userid" @bind="TournamentOfficials.UserID" class="form-control">
+                    <option value="">Select User</option>
+                    @foreach (ApplicationUser user in Users)
+                    {
+                        <option value="@user.Id">@user.UserName</option>
+                    }
+                </select>
+                <ValidationMessage For="() => TournamentOfficials.UserID" class="text-danger" />
+            </div>
+            <div class="mb-3">
+                <label for="roleid" class="form-label">RoleID:</label>
+                <!-- Dropdown for selecting a role -->
+                <select id="roleid" @bind="TournamentOfficials.RoleID" class="form-control">
+                    <option value="">Select Role</option>
+                    @foreach (OfficialRoles role in Roles)
+                    {
+                        <option value="@role.ID">@role.RoleName</option>
+                    }
+                </select>
+                <ValidationMessage For="() => TournamentOfficials.RoleID" class="text-danger" />
+            </div>
+            <button type="submit" class="btn btn-primary">Create</button>
+        </EditForm>
+    </div>
+</div>
+
+<div>
+    <a href="/tournamentofficials">Back to List</a>
+</div>
+
+@code {
+    [SupplyParameterFromForm]
+    private TournamentOfficials TournamentOfficials { get; set; } = new();
+    private List<OfficialRoles> Roles { get; set; } = new();
+    private List<ApplicationUser> Users { get; set; } = new(); 
+
+    // Method to initialize the component and load role and user details
+    protected override async Task OnInitializedAsync()
+    {
+        using var context = DbFactory.CreateDbContext();
+        // SQL query to get role details
+        string SQL = "SELECT * FROM OfficialRoles";
+        Roles = await context.OfficialRoles.FromSqlRaw(SQL).ToListAsync();
+
+        // SQL query to get users with the Official role
+        SQL = @"
+            SELECT AspNetUsers.*
+            FROM AspNetUsers, AspNetUserRoles, AspNetRoles
+            WHERE AspNetUsers.Id = AspNetUserRoles.UserId
+            AND AspNetUserRoles.RoleId = AspNetRoles.Id
+            AND AspNetRoles.Name = 'Official'";
+        Users = await context.Users.FromSqlRaw(SQL).ToListAsync();
+    }
+
+    // Method to add a new TournamentOfficials entry to the database
+    private async Task AddTournamentOfficials()
+    {
+        using var context = DbFactory.CreateDbContext();
+        // SQL query to insert a new TournamentOfficials entry
+        string SQL = "INSERT INTO TournamentOfficials (TournamentID, UserID, RoleID) VALUES (@p0, @p1, @p2)";
+        await context.Database.ExecuteSqlRawAsync(SQL, TournamentOfficials.TournamentID, TournamentOfficials.UserID, TournamentOfficials.RoleID);
+        // Navigate back to the list page after creating the entry
+        NavigationManager.NavigateTo("/tournamentofficials");
+    }
+}
+

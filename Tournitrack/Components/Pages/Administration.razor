@@ -1,0 +1,313 @@
+﻿@page "/admin"
+@rendermode InteractiveServer
+@using Microsoft.AspNetCore.Identity;
+@using Microsoft.EntityFrameworkCore
+@using Tournitrack.Data
+@inject IDbContextFactory<ApplicationDbContext> DbFactory
+<h3>Administration</h3>
+<AuthorizeView>
+    <Authorized>
+        @if (@context.User.IsInRole(ADMINISTRATION_ROLE))
+        {
+            <p>You are in @ADMINISTRATION_ROLE - User Management </p>
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th>Id</th>
+                        <th>User Name</th>
+                        <th>Email</th>
+                        <th>First Name</th>
+                        <th>Last Name</th>
+                        <th>Phone Num</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var user in ColUsers)
+                    {
+                        <tr>
+                            <td>@user.Id</td>
+                            <td>@user.UserName</td>
+                            <td>@user.Email</td>
+                            <td>@user.FirstName</td>
+                            <td>@user.LastName</td>
+                            <td>@user.PhoneNumber</td>
+
+                            <td>
+                                <!-- Edit the current user -->
+                                <button class="btn btn-primary"
+                                        @onclick="(() => EditUser(user))">
+                                    Edit
+                                </button>
+                            </td>
+                        </tr>
+                    }
+                    @if (ShowPopup)
+                    {
+                        <!-- This is the popup to create or edit a user -->
+                        <div class="modal" tabindex="-1" style="display:block" role="dialog">
+                            <div class="modal-dialog">
+                                <div class="modal-content">
+                                    <div class="modal-header">
+                                        <h3 class="modal-title">Edit User</h3>
+                                        <!-- Button to close the popup -->
+                                        <button type="button" class="close"
+                                                @onclick="ClosePopup">
+                                            <span aria-hidden="true">X</span>
+                                        </button>
+                                    </div>
+                                    <!-- Edit form for the current user -->
+                                    <div class="modal-body">
+                                        <!-- Only show Id if not a new user -->
+                                        @if (objUser.Id != "")
+                                        {
+                                            <p>@objUser.Id</p>
+                                        }
+                                        <!-- Only allow edit if a new user -->
+                                        @if (objUser.Id != "")
+                                        {
+                                            <p>@objUser.UserName</p>
+                                        }
+                                        else
+                                        {
+                                            <input class="form-control" type="text"
+                                                   placeholder="UserName"
+                                                   @bind="objUser.UserName" />
+                                        }
+                                        <input class="form-control" type="text"
+                                               placeholder="Email"
+                                               @bind="objUser.Email" />
+                                        @*Password is not shown here as insecure for password to be editable by admin incase of breach, so password reset should be used to change loss password*@
+                                        <input class="form-control" type="text"
+                                               placeholder="Phone Number"
+                                               @bind="objUser.PhoneNumber" />
+                                        <input class="form-control" type="text"
+                                               placeholder="First Name"
+                                               @bind="objUser.FirstName" />
+                                        <input class="form-control" type="text"
+                                               placeholder="Last Name"
+                                               @bind="objUser.LastName" />
+
+                                        <!-- Dropdown to select the role -->
+                                        <select class="form-control"
+                                                @bind="@CurrentUserRole">
+                                            @foreach (var option in Options)
+                                            {
+                                                <option value="@option">
+                                                    @option
+                                                </option>
+                                            }
+                                        </select>
+                                        <br /><br />
+                                        <!-- Button to save the user -->
+                                        <button class="btn btn-primary"
+                                                @onclick="SaveUser">
+                                            Save
+                                        </button>
+                                        <!-- Only show delete button if not a new record -->
+                                        @if (objUser.Id != "")
+                                        {
+                                            <!-- Button to delete the forecast -->
+                                            <button class="btn btn-danger"
+                                                    @onclick="DeleteUser">
+                                                Delete
+                                            </button>
+                                        }
+                                        <br />
+                                        <span style="color:red">@strError</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    }
+                    <button class="btn btn-success" @onclick="AddNewUser">Add User</button>
+                </tbody>
+            </table>
+        }
+        else
+        {
+            <p>You're not signed in as a user in @ADMINISTRATION_ROLE.</p>
+        }
+    </Authorized>
+    <NotAuthorized>
+        <p>You're not loggged in.</p>
+    </NotAuthorized>
+</AuthorizeView>
+@code {
+    [CascadingParameter]
+    private Task<AuthenticationState> authenticationStateTask { get; set; }
+    string ADMINISTRATION_ROLE = "Administrator";
+    System.Security.Claims.ClaimsPrincipal CurrentUser;
+    protected override async Task OnInitializedAsync()
+    {
+        using var context = DbFactory.CreateDbContext();
+        // Create all roles, if not already created
+        await EnsureRoleExists(ADMINISTRATION_ROLE);
+        await EnsureRoleExists("TournamentDirector");
+        await EnsureRoleExists("OfficialManager");
+        await EnsureRoleExists("Official");
+        await EnsureRoleExists("TeamManager");
+        await EnsureRoleExists("ClubManager");
+
+        // Ensure a user named jacktovey@btinternet.com is an Administrator
+        var sqlUser = "SELECT * FROM AspNetUsers WHERE UserName = @p0";
+        var user = await context.Users.FromSqlRaw(sqlUser, "jacktovey@btinternet.com").FirstOrDefaultAsync();
+        if (user != null)
+        {
+            var sqlRole = "SELECT * FROM AspNetRoles WHERE Name = @p0";
+            var adminRole = await context.Roles.FromSqlRaw(sqlRole, ADMINISTRATION_ROLE).FirstOrDefaultAsync();
+            if (adminRole != null)
+            {
+                var sqlUserRole = "SELECT * FROM AspNetUserRoles WHERE UserId = @p0 AND RoleId = @p1";
+                var userRole = await context.UserRoles.FromSqlRaw(sqlUserRole, user.Id, adminRole.Id).FirstOrDefaultAsync();
+                if (userRole == null)
+                {
+                    var sqlInsertUserRole = "INSERT INTO AspNetUserRoles (UserId, RoleId) VALUES (@p0, @p1)";
+                    await context.Database.ExecuteSqlRawAsync(sqlInsertUserRole, user.Id, adminRole.Id);
+                }
+            }
+        }
+        // Get the current logged-in user
+        CurrentUser = (await authenticationStateTask).User;
+
+        // Get the users
+        GetUsers();
+    }
+
+    // Property used to add or edit the currently selected user
+    ApplicationUser objUser = new ApplicationUser();
+    // Tracks the selected role for the currently selected user
+    string CurrentUserRole { get; set; } = "Users";
+    // Collection to display the existing users
+    List<ApplicationUser> ColUsers = new List<ApplicationUser>();
+    // Options to display in the roles dropdown when editing a user
+    List<string> Options = new List<string>() { "Users", "Administrator", "TeamManager", "ClubManager", "OfficialManager", "TournamentDirector", "Official", "Player", "Manager" };
+    // To hold any possible errors
+    string strError = "";
+    // To enable showing the Popup
+    bool ShowPopup = false;
+
+    void AddNewUser()
+    {
+        // Make new user
+        objUser = new ApplicationUser();
+        objUser.PasswordHash = "*****";
+        // Set Id to blank so we know it is a new record
+        objUser.Id = "";
+        // Open the Popup
+        ShowPopup = true;
+    }
+    async Task SaveUser()
+    {
+        using var context = DbFactory.CreateDbContext();
+        // Is this an existing user?
+        if (objUser.Id != "")
+        {
+            var existingUser = await context.Users.FirstOrDefaultAsync(u => u.Id == objUser.Id);
+            if (existingUser != null)
+            {
+                // Update user properties
+                var sql = "UPDATE AspNetUsers SET Email = @p0, PhoneNumber = @p1, FirstName = @p2, LastName = @p3 WHERE Id = @p4";
+                await context.Database.ExecuteSqlRawAsync(sql, objUser.Email, objUser.PhoneNumber, objUser.FirstName, objUser.LastName, objUser.Id);
+
+                // Handle Roles
+                var roles = await context.UserRoles.Where(ur => ur.UserId == objUser.Id).ToListAsync();
+                // Remove user from all roles
+                context.UserRoles.RemoveRange(roles);
+                // Add user to the selected role if it's not "Users"
+                if (CurrentUserRole != "Users")
+                {
+                    var role = await context.Roles.FirstOrDefaultAsync(r => r.Name == CurrentUserRole);
+                    if (role != null)
+                    {
+                        context.UserRoles.Add(new IdentityUserRole<string> { UserId = objUser.Id, RoleId = role.Id });
+                    }
+                }
+                await context.SaveChangesAsync();
+            }
+        }
+        else
+        {
+            // Insert new user
+            var sql = "INSERT INTO AspNetUsers (UserName, Email, PhoneNumber, FirstName, LastName, PasswordHash) VALUES (@p0, @p1, @p2, @p3, @p4, @p5)";
+            await context.Database.ExecuteSqlRawAsync(sql, objUser.UserName, objUser.Email, objUser.PhoneNumber, objUser.FirstName, objUser.LastName, objUser.PasswordHash);
+
+            // Add user to the selected role if it's not "Users"
+            if (CurrentUserRole != "Users")
+            {
+                var newUser = await context.Users.FirstOrDefaultAsync(u => u.UserName == objUser.UserName);
+                var role = await context.Roles.FirstOrDefaultAsync(r => r.Name == CurrentUserRole);
+                if (newUser != null && role != null)
+                {
+                    context.UserRoles.Add(new IdentityUserRole<string> { UserId = newUser.Id, RoleId = role.Id });
+                    await context.SaveChangesAsync();
+                }
+            }
+        }
+        // Close the Popup!
+        ShowPopup = false;
+        // Refresh Users
+        GetUsers();
+    }
+
+    async Task EditUser(ApplicationUser _IdentityUser)
+    {
+        using var context = DbFactory.CreateDbContext();
+        // Set the selected user as the current user
+        var sqlUser = "SELECT * FROM AspNetUsers WHERE Id = @p0";
+        objUser = await context.Users.FromSqlRaw(sqlUser, _IdentityUser.Id).FirstOrDefaultAsync();
+        if (objUser != null)
+        {
+            // Get the roles for the user
+            var sqlRoles = "SELECT AspNetRoles.Name FROM AspNetUserRoles, AspNetRoles WHERE AspNetUserRoles.RoleId = AspNetRoles.Id AND AspNetUserRoles.UserId = @p0";
+            List<string> roleNames = await context.Roles.FromSqlRaw(sqlRoles, objUser.Id).Select(r => r.Name).ToListAsync();
+            // Set the CurrentUserRole to the first role found
+            CurrentUserRole = roleNames.FirstOrDefault() ?? "Users";
+        }
+        // Open the Popup
+        ShowPopup = true;
+    }
+    async Task DeleteUser()
+    {
+        using var context = DbFactory.CreateDbContext();
+        // Close the Popup
+        ShowPopup = false;
+        // Delete the user
+        var sql = "DELETE FROM AspNetUsers WHERE Id = @p0";
+        await context.Database.ExecuteSqlRawAsync(sql, objUser.Id);
+        // Refresh Users
+        GetUsers();
+    }
+    void ClosePopup()
+    {
+        // Close the Popup
+        ShowPopup = false;
+    }
+
+    public void GetUsers()
+    {
+        using var context = DbFactory.CreateDbContext();
+        // Clear any error messages
+        strError = "";
+        // Collection to hold users
+        ColUsers = new List<ApplicationUser>();
+        // Get users from database
+        string sql = "SELECT * FROM AspNetUsers";
+        List<ApplicationUser> users = context.Users.FromSqlRaw(sql).ToList();
+        foreach (ApplicationUser item in users)
+        {
+            ColUsers.Add(item);
+        }
+    }
+
+    private async Task EnsureRoleExists(string roleName)
+    {
+        using var context = DbFactory.CreateDbContext();
+        var role = await context.Roles.FirstOrDefaultAsync(r => r.Name == roleName);
+        if (role == null)
+        {
+            context.Roles.Add(new IdentityRole(roleName));
+            await context.SaveChangesAsync();
+        }
+    }
+}

@@ -1,0 +1,45 @@
+﻿@page "/matchofficials"
+@using Microsoft.EntityFrameworkCore
+@using Microsoft.AspNetCore.Components.QuickGrid
+@using Tournitrack.Data.Models
+@using Tournitrack.Data
+@implements IAsyncDisposable
+@inject IDbContextFactory<Tournitrack.Data.ApplicationDbContext> DbFactory
+
+<PageTitle>Index</PageTitle>
+
+<h1>Index</h1>
+
+<p>
+    <a href="matchofficials/create">Create New</a>
+</p>
+
+<!-- QuickGrid to display the list of match officials -->
+<QuickGrid Class="table" Items="matchOfficialsList.AsQueryable()">
+    <PropertyColumn Property="matchofficials => matchofficials.MatchID" />
+    <PropertyColumn Property="matchofficials => matchofficials.UserID" />
+    <PropertyColumn Property="matchofficials => matchofficials.RoleID" />
+    <TemplateColumn Context="matchofficials">
+        <a href="@($"matchofficials/edit?id={matchofficials.ID}")">Edit</a> |
+        <a href="@($"matchofficials/details?id={matchofficials.ID}")">Details</a> |
+        <a href="@($"matchofficials/delete?id={matchofficials.ID}")">Delete</a>
+    </TemplateColumn>
+</QuickGrid>
+
+@code {
+    private List<MatchOfficials> matchOfficialsList = new();
+
+    // Method to initialize the component and load match official details
+    protected override async Task OnInitializedAsync()
+    {
+        using var context = DbFactory.CreateDbContext();
+        // Get match official details using raw SQL with full table names and only AND statement
+        string SQL = "SELECT * FROM MatchOfficials";
+        matchOfficialsList = await context.MatchOfficials.FromSqlRaw(SQL).ToListAsync();
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        await DbFactory.CreateDbContext().DisposeAsync();
+    }
+}

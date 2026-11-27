@@ -1,0 +1,100 @@
+﻿@page "/players/delete"
+@rendermode InteractiveServer
+@using Microsoft.EntityFrameworkCore
+@using Tournitrack.Data.Models
+@inject IDbContextFactory<Tournitrack.Data.ApplicationDbContext> DbFactory
+@inject NavigationManager NavigationManager
+
+<PageTitle>Delete</PageTitle>
+
+<h1>Delete</h1>
+
+<p>Are you sure you want to delete this?</p>
+<div>
+    <h2>Players</h2>
+    <hr />
+    @if (players is null)
+    {
+        <p><em>Loading...</em></p>
+    }
+    else
+    {
+        <!-- Display the details of the Players record -->
+        <dl class="row">
+            <dt class="col-sm-2">FirstName</dt>
+            <dd class="col-sm-10">@players.FirstName</dd>
+        </dl>
+        <dl class="row">
+            <dt class="col-sm-2">LastName</dt>
+            <dd class="col-sm-10">@players.LastName</dd>
+        </dl>
+        <dl class="row">
+            <dt class="col-sm-2">dob</dt>
+            <dd class="col-sm-10">@players.dob</dd>
+        </dl>
+        <dl class="row">
+            <dt class="col-sm-2">shirtNumber</dt>
+            <dd class="col-sm-10">@players.shirtNumber</dd>
+        </dl>
+        <dl class="row">
+            <dt class="col-sm-2">ClubID</dt>
+            <dd class="col-sm-10">
+                @players.ClubID
+                <br />
+                <!-- Subtext to display the club name -->
+                <small class="text-muted">@clubName</small>
+            </dd>
+        </dl>
+        <!-- Button to delete the Players record -->
+        <EditForm method="post" Model="players" OnValidSubmit="DeletePlayers" FormName="delete" Enhance>
+            <button type="submit" class="btn btn-danger" disabled="@(players is null)">Delete</button> |
+            <a href="/players">Back to List</a>
+        </EditForm>
+    }
+</div>
+
+@code {
+    // The Players record to be deleted
+    private Players? players;
+
+    // The name of the club associated with the player
+    private string clubName = string.Empty;
+
+    // The ID of the Players record to be deleted, supplied from the URL
+    [SupplyParameterFromQuery]
+    private int ID { get; set; }
+
+    // Method to initialize the component and load the Players record and club name
+    protected override async Task OnInitializedAsync()
+    {
+        using var context = DbFactory.CreateDbContext();
+        // Fetch the Players record using SQL query
+        string sql = "SELECT * FROM Players WHERE ID = @p0";
+        players = await context.Players.FromSqlRaw(sql, ID).FirstOrDefaultAsync();
+
+        // If the record is found, fetch the club name
+        if (players != null)
+        {
+            Clubs? club = await context.Clubs.FromSqlRaw("SELECT * FROM Clubs WHERE ID = @p0", players.ClubID).FirstOrDefaultAsync();
+            clubName = club?.Name ?? "Unknown";
+        }
+        else
+        {
+            // If the record is not found, navigate to the "notfound" page
+            NavigationManager.NavigateTo("notfound");
+        }
+    }
+
+    // Method to delete the Players record
+    private async Task DeletePlayers()
+    {
+        using var context = DbFactory.CreateDbContext();
+        // Delete the Players record using SQL query
+        string sql = "DELETE FROM Players WHERE ID = @p0";
+        await context.Database.ExecuteSqlRawAsync(sql, ID);
+        // Navigate back to the list of players
+        NavigationManager.NavigateTo("/players");
+    }
+}
+
+

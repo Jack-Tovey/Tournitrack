@@ -1,0 +1,104 @@
+﻿@page "/tournamentteams/edit"
+@rendermode InteractiveServer
+@using Microsoft.EntityFrameworkCore
+@using Tournitrack.Data.Models
+@inject IDbContextFactory<Tournitrack.Data.ApplicationDbContext> DbFactory
+@inject NavigationManager NavigationManager
+
+<PageTitle>Edit</PageTitle>
+
+<h1>Edit</h1>
+
+<h2>TournamentTeams</h2>
+<hr />
+@if (TournamentTeams is null)
+{
+    <p><em>Loading...</em></p>
+}
+else
+{
+    <div class="row">
+        <div class="col-md-4">
+            <!-- EditForm for updating a TournamentTeams entry -->
+            <EditForm method="post" Model="TournamentTeams" OnValidSubmit="UpdateTournamentTeams" FormName="edit" Enhance>
+                <DataAnnotationsValidator />
+                <ValidationSummary role="alert" />
+                <input type="hidden" name="TournamentTeams.ID" value="@TournamentTeams.ID" />
+                <div class="mb-3">
+                    <label for="tournamentid" class="form-label">TournamentID:</label>
+                    <InputNumber id="tournamentid" @bind-Value="TournamentTeams.TournamentID" class="form-control" />
+                    <ValidationMessage For="() => TournamentTeams.TournamentID" class="text-danger" />
+                </div>
+                <div class="mb-3">
+                    <label for="teamid" class="form-label">TeamID:</label>
+                    <!-- Dropdown for selecting a team, grouped by club -->
+                    <select id="teamid" @bind="TournamentTeams.TeamID" class="form-control">
+                        <option value="">Select Team</option>
+                        @foreach (Clubs club in Clubs)
+                        {
+                            <optgroup label="@club.Name">
+                                @foreach (Teams team in Teams.Where(t => t.ClubID == club.ID))
+                                {
+                                    <option value="@team.ID">@team.TeamName</option>
+                                }
+                            </optgroup>
+                        }
+                    </select>
+                    <ValidationMessage For="() => TournamentTeams.TeamID" class="text-danger" />
+                </div>
+                <button type="submit" class="btn btn-primary">Save</button>
+            </EditForm>
+        </div>
+    </div>
+}
+
+<div>
+    <a href="/tournamentteams">Back to List</a>
+</div>
+
+@code {
+    [SupplyParameterFromQuery]
+    private int ID { get; set; }
+
+    [SupplyParameterFromForm]
+    private TournamentTeams? TournamentTeams { get; set; }
+
+    private List<Teams> Teams { get; set; } = new();
+    private List<Clubs> Clubs { get; set; } = new();
+
+    // Method to initialize the component and load the TournamentTeams entry and team/club details
+    protected override async Task OnInitializedAsync()
+    {
+        using var context = DbFactory.CreateDbContext();
+        // SQL query to get the TournamentTeams entry by ID
+        TournamentTeams = await context.TournamentTeams.FromSqlRaw("SELECT * FROM TournamentTeams WHERE ID = @p0", ID).FirstOrDefaultAsync();
+
+        if (TournamentTeams is null)
+        {
+            NavigationManager.NavigateTo("notfound");
+        }
+
+        // SQL query to get the list of teams
+        string sql = "SELECT * FROM Teams";
+        Teams = await context.Teams.FromSqlRaw(sql).ToListAsync();
+
+        // SQL query to get the list of clubs
+        sql = "SELECT * FROM Clubs";
+        Clubs = await context.Clubs.FromSqlRaw(sql).ToListAsync();
+    }
+
+    // Method to update the TournamentTeams entry in the database
+    private async Task UpdateTournamentTeams()
+    {
+        using var context = DbFactory.CreateDbContext();
+        // SQL query to update the TournamentTeams entry
+        string sql = "UPDATE TournamentTeams SET TournamentID = @p0, TeamID = @p1 WHERE ID = @p2";
+        await context.Database.ExecuteSqlRawAsync(sql, TournamentTeams!.TournamentID, TournamentTeams.TeamID, TournamentTeams.ID);
+        // Navigate back to the list page after updating the entry
+        NavigationManager.NavigateTo("/tournamentteams");
+    }
+}
+
+
+
+

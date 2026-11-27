@@ -1,0 +1,171 @@
+﻿@page "/matches/create"
+@rendermode InteractiveServer
+@using Microsoft.EntityFrameworkCore
+@using Tournitrack.Data.Models
+@inject IDbContextFactory<Tournitrack.Data.ApplicationDbContext> DbFactory
+@inject NavigationManager NavigationManager
+
+<PageTitle>Create</PageTitle>
+
+<h1>Create</h1>
+
+<h2>Matches</h2>
+<hr />
+<div class="row">
+    <div class="col-md-4">
+        <EditForm method="post" Model="Matches" OnValidSubmit="AddMatches" FormName="create" Enhance>
+            <DataAnnotationsValidator />
+            <ValidationSummary class="text-danger" role="alert" />
+            <!-- TournamentID Input -->
+            <div class="mb-3">
+                <label for="tournamentid" class="form-label">TournamentID:</label>
+                <InputNumber id="tournamentid" @bind-Value="Matches.TournamentID" class="form-control" />
+                <ValidationMessage For="() => Matches.TournamentID" class="text-danger" />
+            </div>
+            <!-- ScheduledMatch DateTime Input -->
+            <div class="mb-3">
+                <label for="scheduledmatchdatetime" class="form-label">ScheduledMatchDateTime:</label>
+                <InputDate id="scheduledmatchdatetime" @bind-Value="Matches.ScheduledMatchDateTime" class="form-control" />
+                <ValidationMessage For="() => Matches.ScheduledMatchDateTime" class="text-danger" />
+            </div>
+            <!-- Actual DateTime input -->
+            <div class="mb-3">
+                <label for="actualmatchdatetime" class="form-label">ActualMatchDateTime:</label>
+                <InputDate id="actualmatchdatetime" @bind-Value="Matches.ActualMatchDateTime" class="form-control" />
+                <ValidationMessage For="() => Matches.ActualMatchDateTime" class="text-danger" />
+            </div>
+            <!-- Home Team selection drop down -->
+            <div class="mb-3">
+                <label for="teamidhome" class="form-label">Home Team:</label>
+                <select id="teamidhome" @bind="Matches.TeamIDHome" class="form-control">
+                    <option value="">Select Home Team</option>
+                    @foreach (Clubs club in Clubs)
+                    {
+                        <optgroup label="@club.Name">
+                            @foreach (Teams team in Teams.Where(t => t.ClubID == club.ID))
+                            {
+                                <option value="@team.ID">@team.TeamName</option>
+                            }
+                        </optgroup>
+                    }
+                </select>
+                <ValidationMessage For="() => Matches.TeamIDHome" class="text-danger" />
+            </div>
+            <!-- Home team Sheet ID Input -->
+            <div class="mb-3">
+                <label for="hometeamsheetid" class="form-label">HomeTeamSheetID:</label>
+                <InputNumber id="hometeamsheetid" @bind-Value="Matches.HomeTeamSheetID" class="form-control" />
+                <ValidationMessage For="() => Matches.HomeTeamSheetID" class="text-danger" />
+            </div>
+            <!-- Away Team selection drop down -->
+            <div class="mb-3">
+                <label for="teamidaway" class="form-label">Away Team:</label>
+                <select id="teamidaway" @bind="Matches.TeamIDAway" class="form-control">
+                    <option value="">Select Away Team</option>
+                    @foreach (Clubs club in Clubs)
+                    {
+                        <optgroup label="@club.Name">
+                            @foreach (Teams team in Teams.Where(t => t.ClubID == club.ID))
+                            {
+                                <option value="@team.ID">@team.TeamName</option>
+                            }
+                        </optgroup>
+                    }
+                </select>
+                <ValidationMessage For="() => Matches.TeamIDAway" class="text-danger" />
+            </div>
+            <!-- Away team sheet id input -->
+            <div class="mb-3">
+                <label for="awayteamsheetid" class="form-label">AwayTeamSheetID:</label>
+                <InputNumber id="awayteamsheetid" @bind-Value="Matches.AwayTeamSheetID" class="form-control" />
+                <ValidationMessage For="() => Matches.AwayTeamSheetID" class="text-danger" />
+            </div>
+            <!-- Pitch number input -->
+            <div class="mb-3">
+                <label for="pitchnumber" class="form-label">PitchNumber:</label>
+                <InputNumber id="pitchnumber" @bind-Value="Matches.PitchNumber" class="form-control" />
+                <ValidationMessage For="() => Matches.PitchNumber" class="text-danger" />
+            </div>
+            <!-- Pool ID Input -->
+            <div class="mb-3">
+                <label for="poolid" class="form-label">PoolID:</label>
+                <InputNumber id="poolid" @bind-Value="Matches.PoolID" class="form-control" />
+                <ValidationMessage For="() => Matches.PoolID" class="text-danger" />
+            </div>
+            <!-- Description Input -->
+            <div class="mb-3">
+                <label for="description" class="form-label">Description:</label>
+                <InputText id="description" @bind-Value="Matches.Description" class="form-control" />
+                <ValidationMessage For="() => Matches.Description" class="text-danger" />
+            </div>
+            <!-- Game Length Input -->
+            <div class="mb-3">
+                <label for="gamelength" class="form-label">GameLength:</label>
+                <InputNumber id="gamelength" @bind-Value="Matches.GameLength" class="form-control" />
+                <ValidationMessage For="() => Matches.GameLength" class="text-danger" />
+            </div>
+            <!-- Match complete bool input -->
+            <div class="mb-3">
+                <label for="matchcomplete" class="form-label">MatchComplete:</label>
+                <InputCheckbox id="matchcomplete" @bind-Value="Matches.MatchComplete" class="form-check-input" />
+                <ValidationMessage For="() => Matches.MatchComplete" class="text-danger" />
+            </div>
+            <!-- Result needed bool input -->
+            <div class="mb-3">
+                <label for="resultneeded" class="form-label">ResultNeeded:</label>
+                <InputCheckbox id="resultneeded" @bind-Value="Matches.ResultNeeded" class="form-check-input" />
+                <ValidationMessage For="() => Matches.ResultNeeded" class="text-danger" />
+            </div>
+            <!-- Submit Button -->
+            <button type="submit" class="btn btn-primary">Create</button>
+        </EditForm>
+    </div>
+</div>
+
+<div>
+    <a href="/matches">Back to List</a>
+</div>
+
+@code {
+    [SupplyParameterFromForm]
+    private Matches Matches { get; set; } = new();
+    private List<Teams> Teams { get; set; } = new();
+    private List<Clubs> Clubs { get; set; } = new();
+
+    protected override async Task OnInitializedAsync() //Get team and Club Details for dropdowns
+    {
+        using (var context = DbFactory.CreateDbContext())
+        {
+            string teamsSql = "SELECT * FROM Teams"; //Get team details
+            Teams = await context.Teams.FromSqlRaw(teamsSql).ToListAsync();
+
+            string clubsSql = "SELECT * FROM Clubs"; //Get club details
+            Clubs = await context.Clubs.FromSqlRaw(clubsSql).ToListAsync();
+        }
+    }
+
+    private async Task AddMatches() //Add Match to DB 
+    {
+        using (var context = DbFactory.CreateDbContext())
+        {
+            string sql = @"
+                INSERT INTO Matches (TournamentID, ScheduledMatchDateTime, ActualMatchDateTime, TeamIDHome, HomeTeamSheetID, TeamIDAway, AwayTeamSheetID, PitchNumber, PoolID, Description, GameLength, MatchComplete, ResultNeeded)
+                VALUES (@p0, @p1, @p2, @p3, @p4, @p5, @p6, @p7, @p8, @p9, @p10, @p11, @p12)";
+            await context.Database.ExecuteSqlRawAsync(sql,
+                Matches.TournamentID,
+                Matches.ScheduledMatchDateTime,
+                Matches.ActualMatchDateTime,
+                Matches.TeamIDHome,
+                Matches.HomeTeamSheetID,
+                Matches.TeamIDAway,
+                Matches.AwayTeamSheetID,
+                Matches.PitchNumber,
+                Matches.PoolID,
+                Matches.Description,
+                Matches.GameLength,
+                Matches.MatchComplete,
+                Matches.ResultNeeded);
+        }
+        NavigationManager.NavigateTo("/matches");
+    }
+}

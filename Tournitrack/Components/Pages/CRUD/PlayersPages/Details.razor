@@ -1,0 +1,81 @@
+﻿@page "/players/details"
+@using Microsoft.EntityFrameworkCore
+@using Tournitrack.Data.Models
+@inject IDbContextFactory<Tournitrack.Data.ApplicationDbContext> DbFactory
+@inject NavigationManager NavigationManager
+
+<PageTitle>Details</PageTitle>
+
+<h1>Details</h1>
+
+<div>
+    <h2>Players</h2>
+    <hr />
+    @if (players is null)
+    {
+        <p><em>Loading...</em></p>
+    }
+    else
+    {
+        <!-- Display the details of the Players record -->
+        <dl class="row">
+            <dt class="col-sm-2">FirstName</dt>
+            <dd class="col-sm-10">@players.FirstName</dd>
+            <dt class="col-sm-2">LastName</dt>
+            <dd class="col-sm-10">@players.LastName</dd>
+            <dt class="col-sm-2">dob</dt>
+            <dd class="col-sm-10">@players.dob</dd>
+            <dt class="col-sm-2">shirtNumber</dt>
+            <dd class="col-sm-10">@players.shirtNumber</dd>
+            <dt class="col-sm-2">ClubID</dt>
+            <dd class="col-sm-10">
+                @players.ClubID
+                <br />
+                <!-- Subtext to display the club name -->
+                <small class="text-muted">@clubName</small>
+            </dd>
+        </dl>
+        <div>
+            <!-- Links to edit the record or go back to the list -->
+            <a href="@($"/players/edit?id={players.ID}")">Edit</a> |
+            <a href="@($"/players")">Back to List</a>
+        </div>
+    }
+</div>
+
+@code {
+    // The Players record to be displayed
+    private Players? players;
+
+    // The name of the club associated with the player
+    private string clubName = string.Empty;
+
+    // The ID of the Players record to be displayed, supplied from the URL
+    [SupplyParameterFromQuery]
+    private int ID { get; set; }
+
+    // Method to initialize the component and load the Players record and club name
+    protected override async Task OnInitializedAsync()
+    {
+        using var context = DbFactory.CreateDbContext();
+        // Fetch the Players record using SQL query
+        string sql = "SELECT * FROM Players WHERE ID = @p0";
+        players = await context.Players.FromSqlRaw(sql, ID).FirstOrDefaultAsync();
+
+        // If the record is found, fetch the club name
+        if (players != null)
+        {
+            var club = await context.Clubs.FromSqlRaw("SELECT * FROM Clubs WHERE ID = @p0", players.ClubID).FirstOrDefaultAsync();
+            clubName = club?.Name ?? "Unknown";
+        }
+        else
+        {
+            // If the record is not found, navigate to the "notfound" page
+            NavigationManager.NavigateTo("notfound");
+        }
+    }
+}
+
+
+
+

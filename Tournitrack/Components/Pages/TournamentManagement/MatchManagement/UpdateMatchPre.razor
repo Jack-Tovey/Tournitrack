@@ -1,0 +1,340 @@
+﻿@page "/UpdateMatch/Pre"
+@rendermode InteractiveServer
+@using Microsoft.EntityFrameworkCore;
+@using Tournitrack.Data
+@using Tournitrack.Data.Models
+@inject IDbContextFactory<ApplicationDbContext> DbFactory;
+@inject NavigationManager NavigationManager;
+@inject AuthenticationStateProvider AuthenticationStateProvider;
+<h1>TeamSheet edit point</h1>
+<AuthorizeView>
+<Authorized>
+    @if (!isAuthorized)
+    {
+        <h1>YOU'RE NOT AUTHORISED TO VIEW THIS PAGE!</h1>
+        <h3>Redirecting to Home page in 5s, if this does not happen automatically please click the following link.</h3>
+        <a href="/">Home</a>
+    }
+    else
+    {
+        <h3>UpdateMatchPre</h3>
+        <div class="row">
+            <div class="col-md-6">
+                <h1>Home Team Sheet</h1>
+                <div class="modal-header">
+                    <h3 class="modal-title">Edit Home Team Sheet</h3>
+                </div>
+                <div class="modal-body">
+                    <h3>Players</h3>
+                    @for (int i = 0; i <= 15; i++)
+                    {
+                        int index = i;
+                        <select class="form-control" @bind="Input.PlayerIDsHome[index]">
+                            <option value=0>NO PLAYER</option>
+                            @foreach (Players Player in HomeTeamPlayers)
+                            {
+                                    <option value=@Player.ID @key="Player.ID">@Player.LastName, @Player.FirstName #@Player.shirtNumber</option>
+                            }
+                        </select>
+                    }
+                    <h3>Bench Staff</h3>
+                    <h6>Coach</h6>
+                    <input class="form-control" type="text"
+                           placeholder="Coach Name (Last, First)" @bind="Input.HomeCoachName"/>
+                    <h6>Manager</h6>
+                    <input class="form-control" type="text"
+                           placeholder="Manager Name (Last, First)" @bind="Input.HomeManagerName"/>
+                    <h6>Medical Officer</h6>
+                    <input class="form-control" type="text"
+                           placeholder="Medical officer Name (Last, First)" @bind="Input.HomeMedicalName"/>
+                    <button class="btn btn-primary" @onclick="SaveHome">Save</button>
+                </div>
+            </div>
+                <div class="col-md-6">
+                    <h1>Away Team Sheet</h1>
+                    <div class="modal-header">
+                        <h3 class="modal-title">Edit Away Team Sheet</h3>
+                    </div>
+                    <div class="modal-body">
+                        <h3>Players</h3>
+                        @for (int i = 0; i <= 15; i++)
+                        {
+                            int index = i;
+                            <select class="form-control" @bind="Input.PlayerIDsAway[index]">
+                                <option value=0>NO PLAYER</option>
+                                @foreach (Players Player in AwayTeamPlayers)
+                                {
+                                    <option value=@Player.ID @key="Player.ID">@Player.LastName, @Player.FirstName #@Player.shirtNumber</option>
+                                }
+                            </select>
+                        }
+                        <h3>Bench Staff</h3>
+                        <h6>Coach</h6>
+                        <input class="form-control" type="text"
+                               placeholder="Coach Name (Last, First)" @bind="Input.AwayCoachName" />
+                        <h6>Manager</h6>
+                        <input class="form-control" type="text"
+                               placeholder="Manager Name (Last, First)" @bind="Input.AwayManagerName" />
+                        <h6>Medical Officer</h6>
+                        <input class="form-control" type="text"
+                               placeholder="Medical officer Name (Last, First)" @bind="Input.AwayMedicalName" />
+                        <button class="btn btn-primary" @onclick="SaveAway">Save</button>
+                    </div>
+                </div>
+        </div>
+    }
+</Authorized>
+<NotAuthorized>
+    <h1>YOU'RE NOT AUTHORISED TO VIEW THIS PAGE!</h1>
+    <h3>Redirecting to Home page in 5s, if this does not happen automatically please click the following link.</h3>
+    <a href="/">Home</a>
+</NotAuthorized>
+</AuthorizeView>
+
+@code {
+    private bool isAuthorized = true;
+    private List<Players> HomeTeamPlayers = new();
+    private List<Players> AwayTeamPlayers = new();
+
+    private async Task RedirectAfterDelay()
+    {
+        await Task.Delay(5000);
+        NavigationManager.NavigateTo("/");
+    }
+    [SupplyParameterFromQuery]
+    private int ID { get; set; }
+    public InputModel Input { get; set; } = new InputModel();
+    bool ShowTeamsheet1Popup = false;
+    bool ShowTeamsheet2Popup = false;
+    private string? player;
+    protected override async Task OnInitializedAsync()
+    {
+        var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+        var user = authState.User;
+        if (!user.IsInRole("Administrator") && !user.IsInRole("TournamentDirector") && !user.IsInRole("Official") && !user.IsInRole("OfficialManager"))
+        {
+            isAuthorized = false;
+            StateHasChanged(); // Trigger a re-render to show the unauthorized message
+            _ = RedirectAfterDelay();
+        }
+        //authorisation code ^^^
+        else
+        {
+            //Get the match details
+
+            using var context = DbFactory.CreateDbContext();
+            string sql = "SELECT * FROM Matches WHERE ID = @p0";
+            Matches match = context.Matches.FromSqlRaw(sql, ID).FirstOrDefault();
+
+            HomeTeamPlayers = GetPlayersForHomeTeamClub(ID);
+            AwayTeamPlayers = GetPlayersForAwayTeamClub(ID);
+
+            GetHomeTeamSheet();
+            GetAwayteamSheet();
+        }
+
+    }
+
+    public class InputModel
+    {
+        public int[] PlayerIDsHome = new int[16];
+        public int[] PlayerIDsAway = new int[16];
+        public string HomeCoachName { get; set; }
+        public string HomeManagerName { get; set; }
+        public string HomeMedicalName { get; set; }
+
+        public string AwayCoachName { get; set; }
+        public string AwayManagerName { get; set; }
+        public string AwayMedicalName { get; set; }
+    }
+    public List<Players> GetPlayersForHomeTeamClub(int matchID)
+    {
+        using var context = DbFactory.CreateDbContext();
+        string sql = "SELECT Players.* FROM Players, Teams, Matches WHERE Matches.ID = @p0 AND Matches.TeamIDHome = Teams.ID AND Teams.ClubID = Players.ClubID ORDER BY Players.LastName";
+        List<Players> players = context.Players.FromSqlRaw(sql, matchID).ToList();
+        return players;
+    }
+
+    public List<Players> GetPlayersForAwayTeamClub(int matchID)
+    {
+        using var context = DbFactory.CreateDbContext();
+        string sql = "SELECT Players.* FROM Players, Teams, Matches WHERE Matches.ID = @p0 AND Matches.TeamIDAway = Teams.ID AND Teams.ClubID = Players.ClubID ORDER BY Players.LastName";
+        List<Players> players = context.Players.FromSqlRaw(sql, matchID).ToList();
+        return players;
+    }
+
+    public void GetHomeTeamSheet()
+    {
+        using var context = DbFactory.CreateDbContext();
+        //Get the Home team sheet details
+        string sql = @"
+            SELECT Players.*
+            FROM Players, TeamSheetPlayers, MatchTeamSheet
+            WHERE Players.ID = TeamSheetPlayers.PlayerID
+            AND TeamSheetPlayers.TeamSheetID = MatchTeamSheet.ID
+            AND MatchTeamSheet.MatchID = @p0
+            AND MatchTeamSheet.TeamID = (SELECT TeamIDHome FROM Matches WHERE ID = @p0)";
+        Players[] teamsheet = context.Players.FromSqlRaw(sql, ID).ToArray();
+        if (teamsheet != null)
+        {
+            int i = 0;
+            foreach (Players p in teamsheet)
+            {
+                Input.PlayerIDsHome[i] = p.ID;
+                i++;
+            }
+            // * has to be selected due to the way entity framework works and how it keeps class related to a whole table record and you can't have just section of that with a predefined class.
+            sql = "SELECT * FROM MatchTeamSheet WHERE MatchID = @p0 AND TeamID = (SELECT TeamIDHome FROM Matches WHERE ID = @p0)";
+            MatchTeamSheet staffSheet = context.MatchTeamSheet.FromSqlRaw(sql, ID).FirstOrDefault();
+            Input.HomeCoachName = staffSheet?.CoachName ?? string.Empty;
+            Input.HomeManagerName = staffSheet?.ManagerName ?? string.Empty;
+            Input.HomeMedicalName = staffSheet?.MedicalName ?? string.Empty;
+        }
+        else
+        {
+            for (int i = 0; i <= 15; i++)
+            {
+                Input.PlayerIDsHome[i] = 0;
+            }
+        }
+
+    }
+
+    public void GetAwayteamSheet()
+    {
+        using var context = DbFactory.CreateDbContext();
+        //Get the Home team sheet details
+        string sql = @"
+            SELECT Players.*
+            FROM Players, TeamSheetPlayers, MatchTeamSheet
+            WHERE Players.ID = TeamSheetPlayers.PlayerID
+            AND TeamSheetPlayers.TeamSheetID = MatchTeamSheet.ID
+            AND MatchTeamSheet.MatchID = @p0
+            AND MatchTeamSheet.TeamID = (SELECT TeamIDAway FROM Matches WHERE ID = @p0)";
+        Players[] teamsheet = context.Players.FromSqlRaw(sql, ID).ToArray();
+        if (teamsheet != null)
+        {
+            int i = 0;
+            foreach (Players p in teamsheet)
+            {
+                Input.PlayerIDsAway[i] = p.ID;
+                i++;
+            }
+            // * has to be selected due to the way entity framework works and how it keeps class related to a whole table record and you can't have just section of that with a predefined class.
+            sql = "SELECT * FROM MatchTeamSheet WHERE MatchID = @p0 AND TeamID = (SELECT TeamIDAway FROM Matches WHERE ID = @p0)";
+            MatchTeamSheet staffSheet = context.MatchTeamSheet.FromSqlRaw(sql, ID).FirstOrDefault();
+            Input.AwayCoachName = staffSheet?.CoachName ?? string.Empty;
+            Input.AwayManagerName = staffSheet?.ManagerName ?? string.Empty;
+            Input.AwayMedicalName = staffSheet?.MedicalName ?? string.Empty;
+        }
+        else
+        {
+            for (int i = 0; i <= 15; i++)
+            {
+                Input.PlayerIDsAway[i] = 0;
+            }
+        }
+    }
+
+    public void SaveHome()
+    {
+        using var context = DbFactory.CreateDbContext();
+        string sql = @"
+        SELECT *
+        FROM MatchTeamSheet
+        WHERE MatchID = @p0
+        AND TeamID = (SELECT TeamIDHome FROM Matches WHERE ID = @p0)";
+        var teamsheet = context.MatchTeamSheet.FromSqlRaw(sql, ID).FirstOrDefault();
+        int teamSheetID;
+
+        if (teamsheet == null)
+        {
+            sql = @"
+            INSERT INTO MatchTeamSheet (MatchID, TeamID, CoachName, ManagerName, MedicalName)
+            VALUES (@p0, (SELECT TeamIDHome FROM Matches WHERE ID = @p0), @p1, @p2, @p3)";
+            context.Database.ExecuteSqlRaw(sql, ID, Input.HomeCoachName, Input.HomeManagerName, Input.HomeMedicalName);
+
+            sql = "SELECT ID FROM MatchTeamSheet WHERE MatchID = @p0 AND TeamID = (SELECT TeamIDHome FROM Matches WHERE ID = @p0)";
+            teamSheetID = context.MatchTeamSheet.FromSqlRaw(sql, ID).Select(m => m.ID).FirstOrDefault();
+
+            for (int i = 0; i < Input.PlayerIDsHome.Length; i++)
+            {
+                sql = "INSERT INTO TeamSheetPlayers (TeamSheetID, PlayerID) VALUES (@p0, @p1)";
+                context.Database.ExecuteSqlRaw(sql, teamSheetID, Input.PlayerIDsHome[i]);
+            }
+        }
+        else
+        {
+            teamSheetID = teamsheet.ID;
+
+            sql = @"
+            UPDATE MatchTeamSheet
+            SET CoachName = @p1, ManagerName = @p2, MedicalName = @p3
+            WHERE MatchID = @p0 AND TeamID = (SELECT TeamIDHome FROM Matches WHERE ID = @p0)";
+            context.Database.ExecuteSqlRaw(sql, ID, Input.HomeCoachName, Input.HomeManagerName, Input.HomeMedicalName);
+
+            sql = "DELETE FROM TeamSheetPlayers WHERE TeamSheetID = @p0";
+            context.Database.ExecuteSqlRaw(sql, teamSheetID);
+
+            for (int i = 0; i < Input.PlayerIDsHome.Length; i++)
+            {
+                sql = "INSERT INTO TeamSheetPlayers (TeamSheetID, PlayerID) VALUES (@p0, @p1)";
+                context.Database.ExecuteSqlRaw(sql, teamSheetID, Input.PlayerIDsHome[i]);
+            }
+        }
+
+        sql = "UPDATE Matches SET HomeTeamSheetID = @p0 WHERE ID = @p1";
+        context.Database.ExecuteSqlRaw(sql, teamSheetID, ID);
+    }
+    public void SaveAway()
+    {
+        using var context = DbFactory.CreateDbContext();
+        string sql = @"
+        SELECT *
+        FROM MatchTeamSheet
+        WHERE MatchID = @p0
+        AND TeamID = (SELECT TeamIDAway FROM Matches WHERE ID = @p0)";
+        var teamsheet = context.MatchTeamSheet.FromSqlRaw(sql, ID).FirstOrDefault();
+        int teamSheetID;
+
+        if (teamsheet == null)
+        {
+            sql = @"
+            INSERT INTO MatchTeamSheet (MatchID, TeamID, CoachName, ManagerName, MedicalName)
+            VALUES (@p0, (SELECT TeamIDAway FROM Matches WHERE ID = @p0), @p1, @p2, @p3)";
+            context.Database.ExecuteSqlRaw(sql, ID, Input.AwayCoachName, Input.AwayManagerName, Input.AwayMedicalName);
+
+            sql = "SELECT ID FROM MatchTeamSheet WHERE MatchID = @p0 AND TeamID = (SELECT TeamIDAway FROM Matches WHERE ID = @p0)";
+            teamSheetID = context.MatchTeamSheet.FromSqlRaw(sql, ID).Select(m => m.ID).FirstOrDefault();
+
+            for (int i = 0; i < Input.PlayerIDsAway.Length; i++)
+            {
+                sql = "INSERT INTO TeamSheetPlayers (TeamSheetID, PlayerID) VALUES (@p0, @p1)";
+                context.Database.ExecuteSqlRaw(sql, teamSheetID, Input.PlayerIDsAway[i]);
+            }
+        }
+        else
+        {
+            teamSheetID = teamsheet.ID;
+
+            sql = @"
+            UPDATE MatchTeamSheet
+            SET CoachName = @p1, ManagerName = @p2, MedicalName = @p3
+            WHERE MatchID = @p0 AND TeamID = (SELECT TeamIDAway FROM Matches WHERE ID = @p0)";
+            context.Database.ExecuteSqlRaw(sql, ID, Input.AwayCoachName, Input.AwayManagerName, Input.AwayMedicalName);
+
+            sql = "DELETE FROM TeamSheetPlayers WHERE TeamSheetID = @p0";
+            context.Database.ExecuteSqlRaw(sql, teamSheetID);
+
+            for (int i = 0; i < Input.PlayerIDsHome.Length; i++)
+            {
+                sql = "INSERT INTO TeamSheetPlayers (TeamSheetID, PlayerID) VALUES (@p0, @p1)";
+                context.Database.ExecuteSqlRaw(sql, teamSheetID, Input.PlayerIDsAway[i]);
+            }
+        }
+
+        sql = "UPDATE Matches SET HomeTeamSheetID = @p0 WHERE ID = @p1";
+        context.Database.ExecuteSqlRaw(sql, teamSheetID, ID);
+        //ClosePopup();
+    }
+}

@@ -1,0 +1,60 @@
+﻿@page "/clubs/teams/create"
+@rendermode InteractiveServer
+@using Microsoft.EntityFrameworkCore
+@using Tournitrack.Data.Models
+@inject IDbContextFactory<Tournitrack.Data.ApplicationDbContext> DbFactory
+@inject NavigationManager NavigationManager
+
+<PageTitle>Create</PageTitle>
+
+<h1>Create</h1>
+
+<h2>Teams</h2>
+<hr />
+<div class="row">
+    <div class="col-md-4">
+        <EditForm method="post" Model="Teams" OnValidSubmit="AddTeams" FormName="create" Enhance>
+            <DataAnnotationsValidator />
+            <ValidationSummary class="text-danger" role="alert"/>
+            <div class="mb-3">
+                <label for="teamname" class="form-label">TeamName:</label> 
+                <InputText id="teamname" @bind-Value="Teams.TeamName" class="form-control" /> 
+                <ValidationMessage For="() => Teams.TeamName" class="text-danger" /> 
+            </div>   
+            <div class="mb-3">
+                <label for="clubid" class="form-label" disabled>ClubID:</label>
+                <InputNumber id="clubid" @bind-Value="Teams.ClubID" class="form-control" disabled/> 
+                <ValidationMessage For="() => Teams.ClubID" class="text-danger" disabled/> 
+            </div>        
+            <button type="submit" class="btn btn-primary">Create</button>
+        </EditForm>
+    </div>
+</div>
+
+<div>
+    <a href="/teams">Back to List</a>
+</div>
+
+@code {
+    [SupplyParameterFromForm]
+    private Teams Teams { get; set; } = new();
+    [SupplyParameterFromQuery]
+    public int ClubID { get; set; }
+
+    protected override void OnInitialized()
+    {
+        using var context = DbFactory.CreateDbContext();
+        string sql = "SELECT Name FROM Clubs WHERE ID = @p0";
+        Teams.TeamName = context.Clubs.FromSqlRaw(sql, ClubID).Select(t => t.Name).Single();
+        Teams.ClubID = ClubID;
+    }
+
+    // To protect from overposting attacks, see https://learn.microsoft.com/aspnet/core/blazor/forms/#mitigate-overposting-attacks.
+    private async Task AddTeams()
+    {
+        using var context = DbFactory.CreateDbContext();
+        string sql = "INSERT INTO Teams (TeamName, ClubID) VALUES (@p0, @p1)";
+        await context.Database.ExecuteSqlRawAsync(sql, Teams.TeamName, Teams.ClubID);
+        NavigationManager.NavigateTo("/ClubTeamManager");
+    }
+}

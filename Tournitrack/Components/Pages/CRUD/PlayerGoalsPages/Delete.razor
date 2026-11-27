@@ -1,0 +1,85 @@
+﻿@page "/playergoals/delete"
+@rendermode InteractiveServer
+@using Microsoft.EntityFrameworkCore
+@using Tournitrack.Data.Models
+@inject IDbContextFactory<Tournitrack.Data.ApplicationDbContext> DbFactory
+@inject NavigationManager NavigationManager
+
+<PageTitle>Delete</PageTitle>
+
+<h1>Delete</h1>
+
+<p>Are you sure you want to delete this?</p>
+<div>
+    <h2>PlayerGoals</h2>
+    <hr />
+    @if (playergoals is null)
+    {
+        <p><em>Loading...</em></p>
+    }
+    else
+    {
+        <dl class="row">
+            <dt class="col-sm-2">PlayerID</dt>
+            <dd class="col-sm-10">@playergoals.PlayerID - @playerName</dd> <!-- Display PlayerID and Player's Name -->
+        </dl>
+        <dl class="row">
+            <dt class="col-sm-2">MatchID</dt>
+            <dd class="col-sm-10">@playergoals.MatchID</dd> <!-- Display MatchID -->
+        </dl>
+        <dl class="row">
+            <dt class="col-sm-2">GoalType</dt>
+            <dd class="col-sm-10">@playergoals.GoalType</dd> <!-- Display GoalType -->
+        </dl>
+        <dl class="row">
+            <dt class="col-sm-2">MatchMinute</dt>
+            <dd class="col-sm-10">@playergoals.MatchMinute</dd> <!-- Display MatchMinute -->
+        </dl>
+        <EditForm method="post" Model="playergoals" OnValidSubmit="DeletePlayerGoals" FormName="delete" Enhance>
+            <button type="submit" class="btn btn-danger" disabled="@(playergoals is null)">Delete</button> | <!-- Delete button -->
+            <a href="/playergoals">Back to List</a> <!-- Link to go back to the list -->
+        </EditForm>
+    }
+</div>
+
+@code {
+    private PlayerGoals? playergoals; // Model for PlayerGoals
+    private string playerName = string.Empty; // Variable to store player's name
+
+    [SupplyParameterFromQuery]
+    private int ID { get; set; } // ID of the PlayerGoals entry to be deleted
+
+    // Method to initialize the component and load player goal details
+    protected override async Task OnInitializedAsync()
+    {
+        using var context = DbFactory.CreateDbContext();
+        // SQL query to get the PlayerGoals entry by ID
+        string sql = "SELECT * FROM PlayerGoals WHERE ID = @p0";
+        playergoals = await context.PlayerGoals.FromSqlRaw(sql, ID).FirstOrDefaultAsync();
+
+        if (playergoals is null)
+        {
+            NavigationManager.NavigateTo("notfound"); // Navigate to not found page if playergoals is null
+            return;
+        }
+
+        // SQL query to get the player's name by PlayerID
+        sql = "SELECT * FROM Players WHERE ID = @p0";
+        Players? player = await context.Players.FromSqlRaw(sql, playergoals.PlayerID).FirstOrDefaultAsync();
+        if (player != null)
+        {
+            playerName = $"{player.LastName}, {player.FirstName}"; // Set player's name
+        }
+    }
+
+    // Method to delete the PlayerGoals entry from the database
+    private async Task DeletePlayerGoals()
+    {
+        using var context = DbFactory.CreateDbContext();
+        // SQL query to delete the PlayerGoals entry by ID
+        string sql = "DELETE FROM PlayerGoals WHERE ID = @p0";
+        await context.Database.ExecuteSqlRawAsync(sql, playergoals!.ID);
+        // Navigate back to the list page after deleting the entry
+        NavigationManager.NavigateTo("/playergoals");
+    }
+}

@@ -1,0 +1,37 @@
+﻿@page "/clubs"
+@using Microsoft.EntityFrameworkCore
+@using Microsoft.AspNetCore.Components.QuickGrid
+@using Tournitrack.Data.Models
+@using Tournitrack.Data
+@implements IAsyncDisposable
+@inject IDbContextFactory<Tournitrack.Data.ApplicationDbContext> DbFactory
+
+<PageTitle>Index</PageTitle>
+
+<h1>Index</h1>
+
+<p>
+    <a href="clubs/create">Create New</a>
+</p>
+
+<QuickGrid Class="table" Items="context.Clubs">
+    <PropertyColumn Property="clubs => clubs.ID"/>
+    <PropertyColumn Property="clubs => clubs.Name"/>
+
+    <TemplateColumn Context="clubs">
+        <a href="@($"clubs/edit?id={clubs.ID}")">Edit</a> |
+        <a href="@($"clubs/details?id={clubs.ID}")">Details</a> |
+        <a href="@($"clubs/delete?id={clubs.ID}")">Delete</a>
+    </TemplateColumn>
+</QuickGrid>
+
+@code {
+    private ApplicationDbContext context = default!;
+
+    protected override void OnInitialized()
+    {
+        context = DbFactory.CreateDbContext();
+    }
+
+    public async ValueTask DisposeAsync() => await context.DisposeAsync();
+}

@@ -1,0 +1,273 @@
+﻿@page "/Officials/ManageAvailability"
+@rendermode InteractiveServer
+@using System.Security.Claims
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.AspNetCore.Identity
+@using Microsoft.EntityFrameworkCore
+@using Tournitrack.Data
+@using Tournitrack.Data.Models
+@inject UserManager<ApplicationUser> UserManager
+@inject NavigationManager NavigationManager
+@inject IDbContextFactory<ApplicationDbContext> DbFactory
+@inject AuthenticationStateProvider AuthenticationStateProvider
+
+@attribute [Authorize(Roles = "OfficialManager, Administrator")]
+
+<h3>Manage Officials' Availability</h3>
+
+<AuthorizeView Roles="OfficialManager,Administrator">
+    <Authorized>
+        <div>
+            <button class="btn btn-primary" @onclick="PreviousMonth">Previous</button>
+            <span>@currentMonth.ToString("MMMM yyyy")</span>
+            <button class="btn btn-primary" @onclick="NextMonth">Next</button>
+        </div>
+
+        <table class="table table-bordered">
+            <thead>
+                <tr>
+                    <th>Sun</th>
+                    <th>Mon</th>
+                    <th>Tue</th>
+                    <th>Wed</th>
+                    <th>Thu</th>
+                    <th>Fri</th>
+                    <th>Sat</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var week in calendar)
+                {
+                    <tr>
+                        @foreach (var day in week)
+                        {
+                            <td class="calendar-cell">
+                                @if (day != DateTime.MinValue)
+                                {
+                                    <div>
+                                        <div>@day.Day</div>
+                                        <div>
+                                            @if (availability.TryGetValue(day, out var availList))
+                                            {
+                                                @foreach (var avail in availList)
+                                                {
+                                                    <div>
+                                                        @if (avail.UserID != null && userNames.TryGetValue(avail.UserID, out var userName))
+                                                        {
+                                                            <div>@userName</div>
+                                                        }
+                                                        else
+                                                        {
+                                                            <div>@avail.UserID</div>
+                                                        }
+                                                        <div>
+                                                            <span>M: @(avail.Morning ? "Yes" : "No")</span>
+                                                            <span>A: @(avail.Afternoon ? "Yes" : "No")</span>
+                                                            <span>E: @(avail.Evening ? "Yes" : "No")</span>
+                                                        </div>
+                                                        <button class="btn btn-sm btn-secondary" @onclick="() => EditAvailability(avail)">Edit</button>
+                                                    </div>
+                                                }
+                                            }
+                                            <button class="btn btn-sm btn-secondary" @onclick="() => AddAvailability(day)">Add Availability</button>
+                                        </div>
+                                    </div>
+                                }
+                            </td>
+                        }
+                    </tr>
+                }
+            </tbody>
+        </table>
+
+        @if (selectedAvailability != null)
+        {
+            <div class="modal show" tabindex="-1" style="display: block;">
+                <div class="modal-dialog">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h5 class="modal-title">Edit Availability for @(selectedAvailability.UserID != null && userNames.TryGetValue(selectedAvailability.UserID, out var userName) ? userName : selectedAvailability.UserID) on @selectedAvailability.Date.ToString("D")</h5>
+                            <button type="button" class="btn-close" @onclick="CloseModal"></button>
+                        </div>
+                        <div class="modal-body">
+                            <div class="form-group">
+                                <label for="userSelect">Select User</label>
+                                <select id="userSelect" class="form-control" @bind="selectedAvailability.UserID">
+                                    @foreach (var user in userNames)
+                                    {
+                                        <option value="@user.Key">@user.Value</option>
+                                    }
+                                </select>
+                            </div>
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="morning" @bind="selectedAvailability.Morning">
+                                <label class="form-check-label" for="morning">Morning</label>
+                            </div>
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="afternoon" @bind="selectedAvailability.Afternoon">
+                                <label class="form-check-label" for="afternoon">Afternoon</label>
+                            </div>
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="evening" @bind="selectedAvailability.Evening">
+                                <label class="form-check-label" for="evening">Evening</label>
+                            </div>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-secondary" @onclick="CloseModal">Close</button>
+                            <button type="button" class="btn btn-primary" @onclick="SaveAvailability">Save changes</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        }
+    </Authorized>
+    <NotAuthorized>
+        <p>You are not authorized to view this page.</p>
+    </NotAuthorized>
+</AuthorizeView>
+
+<style>
+    .calendar-cell {
+        width: 100px;
+        height: 100px;
+        vertical-align: top;
+        position: relative;
+        padding: 5px;
+    }
+
+        .calendar-cell div {
+            position: relative;
+            overflow: hidden;
+        }
+</style>
+
+@code {
+    private DateTime currentMonth = DateTime.Now;
+    private Dictionary<DateTime, List<OfficialAvailability>> availability = new Dictionary<DateTime, List<OfficialAvailability>>();
+    private List<List<DateTime>> calendar = new List<List<DateTime>>();
+    private OfficialAvailability selectedAvailability;
+    private Dictionary<string, string> userNames = new Dictionary<string, string>();
+    private string userId;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+        var user = authState.User;
+
+        if (user.Identity == null || !user.Identity.IsAuthenticated)
+        {
+            NavigationManager.NavigateTo("/Identity/Account/Login", true);
+            return;
+        }
+
+        userId = user.FindFirst(c => c.Type == ClaimTypes.NameIdentifier)?.Value;
+        if (userId == null)
+        {
+            NavigationManager.NavigateTo("/Identity/Account/Login", true);
+            return;
+        }
+
+        await LoadAvailability();
+        await LoadUserNames();
+        BuildCalendar();
+    }
+
+    private async Task LoadAvailability()
+    {
+        using var context = DbFactory.CreateDbContext();
+        string sql = "SELECT * FROM OfficialAvailability WHERE MONTH(Date) = @p0 AND YEAR(Date) = @p1";
+        List<OfficialAvailability> availabilities = await context.OfficialAvailability.FromSqlRaw(sql, currentMonth.Month, currentMonth.Year).ToListAsync();
+
+        availability = availabilities.GroupBy(a => a.Date).ToDictionary(g => g.Key, g => g.ToList());
+    }
+
+    private async Task LoadUserNames()
+    {
+        List<ApplicationUser> users = await UserManager.Users.ToListAsync();
+        foreach (var user in users)
+        {
+            userNames[user.Id] = $"{user.LastName}, {user.FirstName}";
+        }
+    }
+
+    private void BuildCalendar()
+    {
+        calendar.Clear();
+        var firstDayOfMonth = new DateTime(currentMonth.Year, currentMonth.Month, 1);
+        var firstDayOfWeek = firstDayOfMonth.AddDays(-(int)firstDayOfMonth.DayOfWeek);
+        var daysInMonth = DateTime.DaysInMonth(currentMonth.Year, currentMonth.Month);
+
+        for (int week = 0; week < 6; week++)
+        {
+            var weekDays = new List<DateTime>();
+            for (int day = 0; day < 7; day++)
+            {
+                var currentDay = firstDayOfWeek.AddDays(week * 7 + day);
+                if (currentDay.Month == currentMonth.Month)
+                {
+                    weekDays.Add(currentDay);
+                }
+                else
+                {
+                    weekDays.Add(DateTime.MinValue);
+                }
+            }
+            calendar.Add(weekDays);
+        }
+    }
+
+    private async Task PreviousMonth()
+    {
+        currentMonth = currentMonth.AddMonths(-1);
+        await LoadAvailability();
+        await LoadUserNames();
+        BuildCalendar();
+    }
+
+    private async Task NextMonth()
+    {
+        currentMonth = currentMonth.AddMonths(1);
+        await LoadAvailability();
+        await LoadUserNames();
+        BuildCalendar();
+    }
+
+    private void EditAvailability(OfficialAvailability availability)
+    {
+        selectedAvailability = availability;
+    }
+
+    private void AddAvailability(DateTime day)
+    {
+        selectedAvailability = new OfficialAvailability { Date = day };
+    }
+
+    private void CloseModal()
+    {
+        selectedAvailability = null;
+    }
+
+    private async Task SaveAvailability()
+    {
+        using var context = DbFactory.CreateDbContext();
+        string sql = "SELECT * FROM OfficialAvailability WHERE UserID = @p0 AND Date = @p1";
+        var existingAvailability = await context.OfficialAvailability.FromSqlRaw(sql, selectedAvailability.UserID, selectedAvailability.Date).FirstOrDefaultAsync();
+        if (existingAvailability != null)
+        {
+            sql = "UPDATE OfficialAvailability SET Morning = @p0, Afternoon = @p1, Evening = @p2 WHERE UserID = @p3 AND Date = @p4";
+            await context.Database.ExecuteSqlRawAsync(sql, selectedAvailability.Morning, selectedAvailability.Afternoon, selectedAvailability.Evening, selectedAvailability.UserID, selectedAvailability.Date);
+        }
+        else
+        {
+            sql = "INSERT INTO OfficialAvailability (UserID, Date, Morning, Afternoon, Evening) VALUES (@p0, @p1, @p2, @p3, @p4)";
+            await context.Database.ExecuteSqlRawAsync(sql, selectedAvailability.UserID, selectedAvailability.Date, selectedAvailability.Morning, selectedAvailability.Afternoon, selectedAvailability.Evening);
+        }
+
+        await context.SaveChangesAsync();
+        await LoadAvailability();
+        await LoadUserNames();
+        CloseModal();
+    }
+}
+
+

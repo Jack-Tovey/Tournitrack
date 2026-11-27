@@ -1,0 +1,88 @@
+﻿@page "/officialavailabilities/delete"
+@rendermode InteractiveServer
+@using Microsoft.EntityFrameworkCore
+@using Tournitrack.Data.Models
+@inject IDbContextFactory<Tournitrack.Data.ApplicationDbContext> DbFactory
+@inject NavigationManager NavigationManager
+
+<PageTitle>Delete</PageTitle>
+
+<h1>Delete</h1>
+
+<p>Are you sure you want to delete this?</p>
+<div>
+    <h2>OfficialAvailability</h2>
+    <hr />
+    @if (officialavailability is null)
+    {
+        <p><em>Loading...</em></p>
+    }
+    else
+    {
+        <!-- Display the details of the OfficialAvailability record -->
+        <dl class="row">
+            <dt class="col-sm-2">UserID</dt>
+            <dd class="col-sm-10">
+                @officialavailability.UserID
+                <br />
+                <!-- Subtext to display the official's name -->
+                <small class="text-muted">@officialUsername</small>
+            </dd>
+        </dl>
+        <dl class="row">
+            <dt class="col-sm-2">Date</dt>
+            <dd class="col-sm-10">@officialavailability.Date</dd>
+        </dl>
+        <dl class="row">
+            <dt class="col-sm-2">Morning</dt>
+            <dd class="col-sm-10">@officialavailability.Morning</dd>
+        </dl>
+        <dl class="row">
+            <dt class="col-sm-2">Afternoon</dt>
+            <dd class="col-sm-10">@officialavailability.Afternoon</dd>
+        </dl>
+        <dl class="row">
+            <dt class="col-sm-2">Evening</dt>
+            <dd class="col-sm-10">@officialavailability.Evening</dd>
+        </dl>
+        <!-- Button to delete the OfficialAvailability record -->
+        <EditForm method="post" Model="officialavailability" OnValidSubmit="DeleteOfficialAvailability" FormName="delete" Enhance>
+            <button type="submit" class="btn btn-danger" disabled="@(officialavailability is null)">Delete</button> |
+            <a href="/officialavailabilities">Back to List</a>
+        </EditForm>
+    }
+</div>
+
+@code {
+    private OfficialAvailability? officialavailability;
+    private string officialUsername = string.Empty;
+
+    // The ID of the OfficialAvailability record to be deleted, supplied from the URL
+    [SupplyParameterFromQuery]
+    private int ID { get; set; }
+
+    // Method to initialize the component and load the OfficialAvailability record
+    protected override async Task OnInitializedAsync()
+    {
+        using var context = DbFactory.CreateDbContext();
+        // Fetch the OfficialAvailability record using SQL query
+        officialavailability = await context.OfficialAvailability.FromSqlRaw("SELECT * FROM OfficialAvailability WHERE ID = @p0", ID).FirstOrDefaultAsync();
+        officialUsername = await context.Users.FromSqlRaw("SELECT UserName FROM AspNetUsers WHERE Id = @p0", officialavailability.UserID).Select(u => u.UserName).FirstOrDefaultAsync();
+
+        // If the record is not found, navigate to the "notfound" page
+        if (officialavailability is null)
+        {
+            NavigationManager.NavigateTo("notfound");
+        }
+    }
+
+    // Method to delete the OfficialAvailability record
+    private async Task DeleteOfficialAvailability()
+    {
+        using var context = DbFactory.CreateDbContext();
+        // Delete the OfficialAvailability record query
+        await context.Database.ExecuteSqlRawAsync("DELETE FROM OfficialAvailability WHERE ID = @p0", officialavailability!.ID);
+        // Navigate back to the list of official availabilities
+        NavigationManager.NavigateTo("/officialavailabilities");
+    }
+}

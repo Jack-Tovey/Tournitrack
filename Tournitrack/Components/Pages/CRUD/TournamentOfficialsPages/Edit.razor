@@ -1,0 +1,114 @@
+﻿@page "/tournamentofficials/edit"
+@rendermode InteractiveServer
+@using Microsoft.EntityFrameworkCore
+@using Tournitrack.Data
+@using Tournitrack.Data.Models
+@inject IDbContextFactory<Tournitrack.Data.ApplicationDbContext> DbFactory
+@inject NavigationManager NavigationManager
+
+<PageTitle>Edit</PageTitle>
+
+<h1>Edit</h1>
+
+<h2>TournamentOfficials</h2>
+<hr />
+@if (TournamentOfficials is null)
+{
+    <p><em>Loading...</em></p>
+}
+else
+{
+    <div class="row">
+        <div class="col-md-4">
+            <!-- EditForm for updating a TournamentOfficials entry -->
+            <EditForm method="post" Model="TournamentOfficials" OnValidSubmit="UpdateTournamentOfficials" FormName="edit" Enhance>
+                <DataAnnotationsValidator />
+                <ValidationSummary role="alert" />
+                <input type="hidden" name="TournamentOfficials.ID" value="@TournamentOfficials.ID" />
+                <div class="mb-3">
+                    <label for="tournamentid" class="form-label">TournamentID:</label>
+                    <InputNumber id="tournamentid" @bind-Value="TournamentOfficials.TournamentID" class="form-control" />
+                    <ValidationMessage For="() => TournamentOfficials.TournamentID" class="text-danger" />
+                </div>
+                <div class="mb-3">
+                    <label for="userid" class="form-label">UserID:</label>
+                    <!-- Dropdown for selecting a user with the Official role -->
+                    <select id="userid" @bind="TournamentOfficials.UserID" class="form-control">
+                        <option value="">Select User</option>
+                        @foreach (ApplicationUser user in Users)
+                        {
+                            <option value="@user.Id">@user.UserName</option>
+                        }
+                    </select>
+                    <ValidationMessage For="() => TournamentOfficials.UserID" class="text-danger" />
+                </div>
+                <div class="mb-3">
+                    <label for="roleid" class="form-label">RoleID:</label>
+                    <!-- Dropdown for selecting a role -->
+                    <select id="roleid" @bind="TournamentOfficials.RoleID" class="form-control">
+                        <option value="">Select Role</option>
+                        @foreach (OfficialRoles role in Roles)
+                        {
+                            <option value="@role.ID">@role.RoleName</option>
+                        }
+                    </select>
+                    <ValidationMessage For="() => TournamentOfficials.RoleID" class="text-danger" />
+                </div>
+                <button type="submit" class="btn btn-primary">Save</button>
+            </EditForm>
+        </div>
+    </div>
+}
+
+<div>
+    <a href="/tournamentofficials">Back to List</a>
+</div>
+
+@code {
+    [SupplyParameterFromQuery]
+    private int ID { get; set; }
+
+    [SupplyParameterFromForm]
+    private TournamentOfficials? TournamentOfficials { get; set; }
+
+    private List<OfficialRoles> Roles { get; set; } = new();
+    private List<ApplicationUser> Users { get; set; } = new();
+
+    // Method to initialize the component and load the TournamentOfficials entry and role/user details
+    protected override async Task OnInitializedAsync()
+    {
+        using var context = DbFactory.CreateDbContext();
+        // SQL query to get the TournamentOfficials entry by ID
+        TournamentOfficials = await context.TournamentOfficials.FromSqlRaw("SELECT * FROM TournamentOfficials WHERE ID = @p0", ID).FirstOrDefaultAsync();
+
+        if (TournamentOfficials is null)
+        {
+            NavigationManager.NavigateTo("notfound");
+        }
+
+        // SQL query to get role details
+        string rolesSql = "SELECT * FROM OfficialRoles";
+        Roles = await context.OfficialRoles.FromSqlRaw(rolesSql).ToListAsync();
+
+        // SQL query to get users with the Official role
+        string usersSql = @"
+            SELECT AspNetUsers.*
+            FROM AspNetUsers, AspNetUserRoles, AspNetRoles
+            WHERE AspNetUsers.Id = AspNetUserRoles.UserId
+            AND AspNetUserRoles.RoleId = AspNetRoles.Id
+            AND AspNetRoles.Name = 'Official'";
+        Users = await context.Users.FromSqlRaw(usersSql).ToListAsync();
+    }
+
+    // Method to update the TournamentOfficials entry in the database
+    private async Task UpdateTournamentOfficials()
+    {
+        using var context = DbFactory.CreateDbContext();
+        // SQL query to update the TournamentOfficials entry
+        string sql = "UPDATE TournamentOfficials SET TournamentID = @p0, UserID = @p1, RoleID = @p2 WHERE ID = @p3";
+        await context.Database.ExecuteSqlRawAsync(sql, TournamentOfficials!.TournamentID, TournamentOfficials.UserID, TournamentOfficials.RoleID, TournamentOfficials.ID);
+
+        // Navigate back to the list page after updating the entry
+        NavigationManager.NavigateTo("/tournamentofficials");
+    }
+}

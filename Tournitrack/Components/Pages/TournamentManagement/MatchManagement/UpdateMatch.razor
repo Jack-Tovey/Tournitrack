@@ -1,0 +1,66 @@
+﻿@page "/UpdateMatch"
+@rendermode InteractiveServer
+@using Microsoft.EntityFrameworkCore;
+@using Tournitrack.Data.Models
+@inject IDbContextFactory<Tournitrack.Data.ApplicationDbContext> DbFactory;
+@inject NavigationManager NavigationManager;
+@inject AuthenticationStateProvider AuthenticationStateProvider;
+
+<h3>UpdateMatch</h3>
+<AuthorizeView>
+    <Authorized>
+        @if (!isAuthorized)
+        {
+            <h1>YOU'RE NOT AUTHORISED TO VIEW THIS PAGE!</h1>
+            <h3>Redirecting to Home page in 5s, if this does not happen automatically please click the following link.</h3>
+            <a href="/">Home</a>
+        }
+        else
+        {
+            //buttons to redirect to appropriate matchupdate subpage.
+            <button class="btnav btn-primary" @onclick='() => NavigationManager.NavigateTo($"/UpdateMatch/Pre?ID={matchContext.ID}")'>Edit Team Sheets Prematch</button>
+            <button class="btnav btn-primary" @onclick='() => NavigationManager.NavigateTo($"/UpdateMatch/Post?ID={matchContext.ID}")'>Edit Completed Match Info</button>
+            <br/>
+            <br/>
+            <button class="btnnav btn-primary" @onclick='() => NavigationManager.NavigateTo($"/UpdateMatch/Officials?ID={matchContext.ID}")'>Edit Match Officials</button>
+        }
+    </Authorized>
+    <NotAuthorized>
+        <h1>YOU'RE NOT AUTHORISED TO VIEW THIS PAGE!</h1>
+        <h3>Redirecting to Home page in 5s, if this does not happen automatically please click the following link.</h3>
+        <a href="/">Home</a>
+    </NotAuthorized>
+</AuthorizeView>
+
+@code {
+    [SupplyParameterFromQuery]
+    private int ID { get; set; }
+    Matches matchContext;
+    protected override async Task OnInitializedAsync()
+    {
+        var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+        var user = authState.User;
+        if (!user.IsInRole("Administrator") && !user.IsInRole("TournamentDirector") && !user.IsInRole("Official") && !user.IsInRole("OfficialManager"))
+        {
+            isAuthorized = false;
+            StateHasChanged(); // Trigger a re-render to show the unauthorized message
+            _ = RedirectAfterDelay();
+        }
+        //authorisation code ^^^
+
+        //Get the match details
+
+        using var context = DbFactory.CreateDbContext();
+        string sql = "SELECT * FROM Matches WHERE ID = @p0";
+        matchContext = context.Matches.FromSqlRaw(sql, ID).FirstOrDefault();
+    }
+
+    //Authorisation code
+    private bool isAuthorized = true;
+
+    private async Task RedirectAfterDelay()
+    {
+        await Task.Delay(5000);
+        NavigationManager.NavigateTo("/");
+    }
+}

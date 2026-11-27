@@ -1,0 +1,67 @@
+﻿@page "/playergoals/details"
+@using Microsoft.EntityFrameworkCore
+@using Tournitrack.Data.Models
+@inject IDbContextFactory<Tournitrack.Data.ApplicationDbContext> DbFactory
+@inject NavigationManager NavigationManager
+
+<PageTitle>Details</PageTitle>
+
+<h1>Details</h1>
+
+<div>
+    <h2>PlayerGoals</h2>
+    <hr />
+    @if (playergoals is null)
+    {
+        <p><em>Loading...</em></p>
+    }
+    else
+    {
+        <dl class="row">
+            <dt class="col-sm-2">PlayerID</dt>
+            <dd class="col-sm-10">@playergoals.PlayerID - @playerName</dd> <!-- Display PlayerID and Player's Name -->
+            <dt class="col-sm-2">MatchID</dt>
+            <dd class="col-sm-10">@playergoals.MatchID</dd> <!-- Display MatchID -->
+            <dt class="col-sm-2">GoalType</dt>
+            <dd class="col-sm-10">@playergoals.GoalType</dd> <!-- Display GoalType -->
+            <dt class="col-sm-2">MatchMinute</dt>
+            <dd class="col-sm-10">@playergoals.MatchMinute</dd> <!-- Display MatchMinute -->
+        </dl>
+        <div>
+            <a href="@($"/playergoals/edit?id={playergoals.ID}")">Edit</a> | <!-- Link to edit the entry -->
+            <a href="@($"/playergoals")">Back to List</a> <!-- Link to go back to the list -->
+        </div>
+    }
+</div>
+
+@code {
+    private PlayerGoals? playergoals; // Model for PlayerGoals
+    private string playerName = string.Empty; // Variable to store player's name
+
+    [SupplyParameterFromQuery]
+    private int ID { get; set; } // ID of the PlayerGoals entry to be displayed
+
+    // Method to initialize the component and load player goal details
+    protected override async Task OnInitializedAsync()
+    {
+        using var context = DbFactory.CreateDbContext();
+        // SQL query to get the PlayerGoals entry by ID
+        string sql = "SELECT * FROM PlayerGoals WHERE ID = @p0";
+        playergoals = await context.PlayerGoals.FromSqlRaw(sql, ID).FirstOrDefaultAsync();
+
+        if (playergoals is null)
+        {
+            NavigationManager.NavigateTo("notfound"); // Navigate to not found page if playergoals is null
+            return;
+        }
+
+        // SQL query to get the player's name by PlayerID
+        sql = "SELECT * FROM Players WHERE ID = @p0";
+        Players? player = await context.Players.FromSqlRaw(sql, playergoals.PlayerID).FirstOrDefaultAsync();
+        if (player != null)
+        {
+            playerName = $"{player.LastName}, {player.FirstName}"; // Set player's name
+        }
+    }
+}
+

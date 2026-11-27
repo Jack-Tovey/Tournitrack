@@ -1,0 +1,780 @@
+﻿@page "/TournamentCentre";
+@rendermode InteractiveServer
+@using Microsoft.EntityFrameworkCore;
+@using Tournitrack.Data.Models;
+@inject IDbContextFactory<Tournitrack.Data.ApplicationDbContext> DbFactory;
+@inject NavigationManager NavigationManager;
+@inject AuthenticationStateProvider AuthenticationStateProvider;
+<AuthorizeView>
+    <Authorized>
+        @if (!isAuthorized)
+        {
+            <h1>YOU'RE NOT AUTHORISED TO VIEW THIS PAGE!</h1>
+            <h3>Redirecting to Home page in 5s, if this does not happen automatically please click the following link.</h3>
+            <a href="/">Home</a>
+        }//Not Authorised
+        else if (ID == 0)
+        {
+            <h1>NO TOURNAMENT SELECTED</h1>
+            <h3>Please select a tournament from the list on the left.</h3>
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th>Tournament Name</th>
+                        <th>Date</th>
+                        <th>Location</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (Tournaments tournament in GetTournamentList())
+                    {
+                        <tr>
+                            <td>@tournament.TournamentName</td>
+                            <td>@tournament.TournamentDate.ToShortDateString()</td>
+                            <td>@tournament.Location</td>
+                            <td>
+                                <button class="btn btn-primary" @onclick='() => NavigationManager.NavigateTo($"/TournamentCentre?ID={tournament.ID}")'>Edit Tournament</button>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        }//No Tournament Selected
+        else
+        {
+            <h1>Tournament Management Centre</h1>
+            <h2>Match Results</h2>
+            if (GetMatchesList(ID).Count == 0)
+            {
+                <h3>No matches have been scheduled for this tournament.</h3>
+                <h4>Perhaps this page was missed in the tournament setup, use the button bellow to finish the tournament setup</h4>
+                <button class="btn btn-primary" @onclick='() => NavigationManager.NavigateTo($"/generatematches?ID={ID}")'>Setup Tournament Matches</button>
+                <br/>
+                <br/>
+            }
+            else
+            {
+                <table class="table">
+                    <thead>
+                        <tr>
+                            <th>Match ID</th>
+                            <th>Match Time</th>
+                            <th>Home Team</th>
+                            <th>Home Score</th>
+                            <th>Away Score</th>
+                            <th>Away Team</th>
+                            <th>Pitch Number</th>
+                            <th>Notes</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (Matches match in GetMatchesList(ID))
+                        {
+                            <tr>
+                                <td>@match.ID</td>
+                                <td>@match.ScheduledMatchDateTime.ToShortTimeString()</td>
+                                @if (match.TeamIDHome != 0)
+                                {
+                                    <td>@GetTeamName(match.TeamIDHome)</td>
+                                }
+                                else
+                                {
+                                    <td>BYE</td>
+                                }
+                                @if (match.MatchComplete == true)
+                                {
+                                    <td>@GetTeamScore(match.ID, match.TeamIDHome)</td>
+                                }
+                                else
+                                {
+                                    <td>NS</td>
+                                }
+                                @if (match.MatchComplete == true)
+                                {
+                                    <td>@GetTeamScore(match.ID, match.TeamIDAway)</td>
+                                }
+                                else
+                                {
+                                    <td>NS</td>
+                                }
+                                @if (match.TeamIDAway != 0)
+                                {
+                                    <td>@GetTeamName(match.TeamIDAway)</td>
+                                }
+                                else
+                                {
+                                    <td>BYE</td>
+                                }
+                                <td>@match.PitchNumber</td>
+                                @if (match.ResultNeeded)
+                                {
+                                    <td>@match.Description, Result Needed</td>
+                                }
+                                else
+                                {
+                                    <td>@match.Description</td>
+                                }
+                                <td>
+                                    <button class="btn btn-primary" @onclick='() => NavigationManager.NavigateTo($"/UpdateMatch?ID={match.ID}")'>Edit Match</button>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+
+
+                <h2>Table</h2>
+                @if (GetPoolsList(ID).Count != 0)
+                {
+                    @* <button class="btn btn-primary" @onclick="UpdatePoolTeams">Update Pool Teams</button> *@
+
+                    foreach (Pools pool in GetPoolsList(ID))
+                    {
+                        <h3>Pool @pool.PoolNumber.@pool.PhaseNumber</h3>
+                        <table class="table">
+                            <thead>
+                                <tr>
+                                    <th>Team</th>
+                                    <th>Played</th>
+                                    <th>For</th>
+                                    <th>Against</th>
+                                    <th>Goal Difference</th>
+                                    <th>Points</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (PoolsTeams poolTeam in GetPoolTeamsList(pool.ID))
+                                {
+                                    <tr>
+                                        @if (poolTeam.TeamID != 0)
+                                        {
+                                            <td>@GetTeamName(poolTeam.TeamID)</td>
+                                        }
+                                        else
+                                        {
+                                            <td>BYE</td>
+                                        }
+                                        @* Calculate team stats for the pool team *@
+                                        @{
+                                            TeamStats teamStats = CalculateTeamStatsForPoolTeam(poolTeam.TeamID);
+                                        }
+                                        <td>@teamStats.GamesPlayed</td>
+                                        <td>@teamStats.GoalsFor</td>
+                                        <td>@teamStats.GoalsAgainst</td>
+                                        <td>@teamStats.GoalDifference</td>
+                                        <td>@teamStats.Points</td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    }
+                    <button class="btn btn-primary" @onclick='(GeneratePoolsPhase2Button)'>Generate Phase 2</button>
+                }
+                else
+                {
+                    <table class="table">
+                        <thead>
+                            <tr>
+                                <th>Team</th>
+                                <th>Played</th>
+                                <th>For</th>
+                                <th>Against</th>
+                                <th>Goal Difference</th>
+                                <th>Points</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (TeamStats teamStats in CalculateTeamStats())
+                            {
+                                <tr>
+                                    <td>@teamStats.TeamName</td>
+                                    <td>@teamStats.GamesPlayed</td>
+                                    <td>@teamStats.GoalsFor</td>
+                                    <td>@teamStats.GoalsAgainst</td>
+                                    <td>@teamStats.GoalDifference</td>
+                                    <td>@teamStats.Points</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                }
+            }
+        }
+    </Authorized>
+    <NotAuthorized>
+        <h1>YOU'RE NOT AUTHORISED TO VIEW THIS PAGE!</h1>
+        <h3>Redirecting to Home page in 5s, if this does not happen automatically please click the following link.</h3>
+        <a href="/">Home</a>
+    </NotAuthorized>
+</AuthorizeView>
+
+@code {
+    private bool isAuthorized = true;
+    private async Task RedirectAfterDelay()
+    {
+        await Task.Delay(5000);
+        NavigationManager.NavigateTo("/");
+    }
+    [SupplyParameterFromQuery]
+    private int ID { get; set; }
+    protected override async Task OnInitializedAsync()
+    {
+        var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+        var user = authState.User;
+        if (!user.IsInRole("Administrator") && !user.IsInRole("TournamentDirector"))
+        {
+            isAuthorized = false;
+            StateHasChanged(); // Trigger a re-render to show the unauthorized message
+            _ = RedirectAfterDelay();
+        }
+        //authorisation code ^^^
+        else
+        {
+            //Initialisationg routine if authorised
+        }
+
+    }
+
+    private string GetTeamName(int TeamID)
+    {
+        //Gets team name from ID for UI.
+        using var context = DbFactory.CreateDbContext();
+        string sql = "SELECT TeamName FROM Teams WHERE ID = @p0";
+        string teamName = context.Teams.FromSqlRaw(sql, TeamID).Select(t => t.TeamName).FirstOrDefault();
+        return teamName;
+    }
+
+    private List<Matches> GetMatchesList(int ID)
+    {
+        //getsList of Match but only ones that are after the current datetime
+        using var context = DbFactory.CreateDbContext();
+        string sql = "SELECT * FROM Matches WHERE TournamentID = @p0"; // AND ScheduledMatchDateTime <= @p1";
+        List<Matches> matchesList = context.Matches.FromSqlRaw(sql, ID, DateTime.Now).ToList();
+        matchesList = matchesList.OrderBy(m => m.ScheduledMatchDateTime).ThenBy(m => m.PitchNumber).ToList();
+        return matchesList;
+    }
+
+    private List<Tournaments> GetTournamentList()
+    {
+        //getsList of Match but only ones that are after the current datetime
+        using var context = DbFactory.CreateDbContext();
+        string sql = "SELECT * FROM Tournaments WHERE TournamentDate >= @p0";
+        List<Tournaments> tournamentsList = context.Tournaments.FromSqlRaw(sql, DateTime.Now.Date).ToList();
+        return tournamentsList;
+    }
+
+    private List<Pools> GetPoolsList(int ID)
+    {
+        //gets List of pools that are in the tournament
+        using var context = DbFactory.CreateDbContext();
+        string sql = "SELECT * FROM Pools WHERE TournamentID = @p0";
+        List<Pools> poolsList = context.Pools.FromSqlRaw(sql, ID).ToList();
+        poolsList = poolsList.OrderBy(p => p.PhaseNumber).ThenBy(p => p.PoolNumber).ToList();       
+        return poolsList;
+    }
+
+    private List<Pools> GetPoolsList(int ID, int phase)
+    {
+        //gets List of pools that are in the tournament for a specific phase
+        using var context = DbFactory.CreateDbContext();
+        string sql = "SELECT * FROM Pools WHERE TournamentID = @p0 AND PhaseNumber = @p1";
+        List<Pools> poolsList = context.Pools.FromSqlRaw(sql, ID, phase).ToList();
+        poolsList = poolsList.OrderBy(p => p.PhaseNumber).ThenBy(p => p.PoolNumber).ToList();
+        return poolsList;
+    }
+
+    private List<PoolsTeams> GetPoolTeamsList(int ID)
+    {
+        //gets List of teams that are in the pool
+        using var context = DbFactory.CreateDbContext();
+        string sql = "SELECT * FROM PoolTeams WHERE PoolID = @p0";
+        List<PoolsTeams> PoolsTeamsList = context.PoolTeams.FromSqlRaw(sql, ID).ToList();
+        PoolsTeamsList = PoolsTeamsList.ToList();
+        return PoolsTeamsList;
+    }
+
+    private List<Teams> GetTeamsList(int ID)
+    {
+        //Gets list of teams which are in the tournament
+        using var context = DbFactory.CreateDbContext();
+        string sql = "SELECT Teams.* FROM Teams, TournamentTeams WHERE TournamentTeams.TournamentID = @p0 AND TournamentTeams.TeamID = Teams.ID";
+        List<Teams> teamsList = context.Teams.FromSqlRaw(sql,ID).ToList();
+        return teamsList;
+    }
+
+    private List<TeamStats> CalculateTeamStats()
+    {
+        List<TeamStats> teamStatsList = new List<TeamStats>();
+        List<Teams> teams = GetTeamsList(ID);
+        List<Matches> matches = GetCompletedMatches();
+
+        using var context = DbFactory.CreateDbContext();
+
+        foreach (Teams team in teams)
+        {
+            TeamStats stats = new TeamStats
+                {
+                    TeamID = team.ID,
+                    TeamName = GetTeamName(team.ID),
+                    GamesPlayed = 0,
+                    GoalsFor = 0,
+                    GoalsAgainst = 0,
+                    GoalDifference = 0,
+                    Points = 0
+                };
+
+            foreach (Matches match in matches)
+            {
+                if ((match.TeamIDHome == team.ID || match.TeamIDAway == team.ID) && match.MatchComplete)
+                {
+                    stats.GamesPlayed++;
+
+                    // Get player IDs for the home and away teams
+                    List<int> homePlayerIDs = context.TeamSheetPlayers
+                        .FromSqlRaw("SELECT PlayerID FROM TeamSheetPlayers WHERE TeamSheetID = @p0", match.HomeTeamSheetID)
+                        .Select(tsp => tsp.PlayerID)
+                        .ToList();
+
+                    List<int> awayPlayerIDs = context.TeamSheetPlayers
+                        .FromSqlRaw("SELECT PlayerID FROM TeamSheetPlayers WHERE TeamSheetID = @p0", match.AwayTeamSheetID)
+                        .Select(tsp => tsp.PlayerID)
+                        .ToList();
+
+                    // Calculate goals for and against
+                    int homeGoals = GetTeamScore(match.ID, match.TeamIDHome);
+
+                    int awayGoals = GetTeamScore(match.ID, match.TeamIDAway);
+
+                    if (match.TeamIDHome == team.ID)
+                    {
+                        stats.GoalsFor += homeGoals;
+                        stats.GoalsAgainst += awayGoals;
+                        if (homeGoals > awayGoals)
+                        {
+                            stats.Points += 3; // Win
+                        }
+                        else if (homeGoals == awayGoals)
+                        {
+                            stats.Points += 1; // Draw
+                        }
+                    }
+                    else if (match.TeamIDAway == team.ID)
+                    {
+                        stats.GoalsFor += awayGoals;
+                        stats.GoalsAgainst += homeGoals;
+                        if (awayGoals > homeGoals)
+                        {
+                            stats.Points += 3; // Win
+                        }
+                        else if (awayGoals == homeGoals)
+                        {
+                            stats.Points += 1; // Draw
+                        }
+                    }
+                }
+            }
+
+            stats.GoalDifference = stats.GoalsFor - stats.GoalsAgainst;
+            teamStatsList.Add(stats);
+        }
+
+        return teamStatsList.OrderByDescending(t => t.Points).ThenByDescending(t => t.GoalDifference).ToList();
+    }
+
+
+    private void GeneratePoolsPhase2Button()
+    {
+        GeneratePoolsPhase2(ID);
+    }
+
+    private void GeneratePoolsPhase2(int ID)
+    {
+        using var context = DbFactory.CreateDbContext();
+        List<Pools> existingPools = GetPoolsList(ID);
+        string sql = @"
+                    SELECT DATEDIFF(MINUTE, 
+                        (SELECT MAX(ScheduledMatchDateTime) 
+                         FROM Matches 
+                         WHERE TournamentID = @p0 
+                         AND ScheduledMatchDateTime < 
+                             (SELECT MAX(ScheduledMatchDateTime) 
+                              FROM Matches 
+                              WHERE TournamentID = @p0)), 
+                        (SELECT MAX(ScheduledMatchDateTime) 
+                         FROM Matches 
+                         WHERE TournamentID = @p0)
+                    ) AS MatchInterval";
+        int matchInterval = context.Database.ExecuteSqlRaw(sql, ID);
+        sql = "SELECT MAX(ScheduledMatchDateTime) AS ScheduledMatchDateTime FROM Matches WHERE TournamentID = @p0";
+        DateTime currentMatchTime = context.Matches.FromSqlRaw(sql, ID).Select(m => m.ScheduledMatchDateTime).FirstOrDefault();
+        currentMatchTime = currentMatchTime.AddMinutes(matchInterval);
+        sql = "SELECT MAX(PitchNumber) AS PitchNumber FROM Matches WHERE TournamentID = @p0";
+        int pitchCount = context.Matches.FromSqlRaw(sql, ID).Select(m => m.PitchNumber).FirstOrDefault();
+        if (existingPools.Count == 2)
+        {
+            //If there are only 2 pools, pool no longer need and playoff is made of 1v1, 2v2 etc
+            List<PoolsTeams> pool1 = GetPoolTeamsList(existingPools[0].ID);
+            pool1 = pool1.ToList(); //TODO - Order by points and goal difference
+            List<PoolsTeams> pool2 = GetPoolTeamsList(existingPools[1].ID);
+            pool2 = pool2.ToList(); //TODO - Order by points and goal difference
+            int matchCounter = 0;
+
+            for (int i = 0; i < pool1.Count; i++)
+            {
+                Matches match = new Matches
+                    {
+                        TeamIDHome = pool1[i].TeamID,
+                        TeamIDAway = pool2[i].TeamID,
+                        ScheduledMatchDateTime = currentMatchTime,
+                        PitchNumber = 1,
+                        TournamentID = ID
+                    };
+                context.Matches.Add(match);
+                if (pitchCount >= 2)
+                {
+                    matchCounter++;
+                    if (matchCounter == pitchCount)
+                    {
+                        matchCounter = 0;
+                        currentMatchTime = currentMatchTime.AddMinutes(matchInterval);
+                    }
+                }
+                if (pitchCount == 1)
+                {
+                    currentMatchTime = currentMatchTime.AddMinutes(matchInterval);
+                }
+            }
+            context.SaveChanges();
+            return;
+        }
+        // Distribute of teams method is different depending on if the number of pools or number of teams is greater
+        if (existingPools.Count <= GetPoolTeamsList(existingPools[0].ID).Count)
+        {
+            //If there are fewer pools than teams per pool
+            int newPoolCount = existingPools.Count;
+            //Work out what fraction of teams from each pool go into each pool
+            int poolSize = GetPoolTeamsList(existingPools[0].ID).Count;
+            for (int i = 0; i < newPoolCount; i++)
+            {
+                sql = "INSERT INTO Pools (TournamentID, PoolNumber, PhaseNumber) VALUES (@p0, @p1, @p2)";
+                context.Database.ExecuteSqlRaw(sql, ID, i + 1 , 2);
+            }
+            List<Pools> newPools = GetPoolsList(ID, 2);
+            double fraction = poolSize / newPoolCount;
+            foreach (Pools pool in existingPools)
+            {
+                List<PoolsTeams> poolTeamsList = GetPoolTeamsList(pool.ID);
+
+                for (int i = 0; i < poolTeamsList.Count; i++)
+                {
+                    int newPoolIndex = (int)(i / fraction);
+                    if (newPoolIndex >= newPools.Count)
+                    {
+                        newPoolIndex = newPools.Count - 1;
+                    }
+
+                    sql = "INSERT INTO PoolTeams (PoolID, TeamID, GamesPlayed, GoalsFor, GoalsAgainst, GoalDifference, Points) VALUES (@p0, @p1, @p2, @p3, @p4, @p5, @p6)";
+                    context.Database.ExecuteSqlRaw(sql, newPools[newPoolIndex].ID, poolTeamsList[i].TeamID, 0, 0, 0, 0, 0);
+                }
+            }
+            Dictionary<int, List<Matches>> poolMatches = new Dictionary<int, List<Matches>>();
+            foreach (Pools pool in newPools)
+            {
+                sql = "SELECT TeamID FROM PoolTeams WHERE PoolID = @p0";
+                List<int> poolTeamIDs = context.PoolTeams.FromSqlRaw(sql, pool.ID).Select(pt => pt.TeamID).ToList();
+
+                sql = "SELECT PoolNumber FROM Pools WHERE ID = @p0";
+                int poolNumber = context.Pools.FromSqlRaw(sql, pool.ID).Select(p => p.PoolNumber).FirstOrDefault();
+
+                sql = "SELECT * FROM PoolTeams WHERE PoolID = @p0";
+                int teamPoolCount = context.PoolTeams.FromSqlRaw(sql, pool.ID).Count();
+
+                sql = "SELECT GameLength FROM Matches WHERE TournamentID = @p0"; 
+                double matchLength = context.Matches.FromSqlRaw(sql, ID).Select(m => m.GameLength).FirstOrDefault();
+
+                //Initialise the GenerateMatches class and generate the matches for the pool using the existing GenerateRoundRobin method
+                List<Matches> tempPoolMatches = GenerateRoundRobin(teamPoolCount, pitchCount, poolTeamIDs, pool.ID, matchInterval, currentMatchTime, matchLength);
+                poolMatches.Add(pool.ID, tempPoolMatches);
+            }
+            // Track pitch availability
+            Dictionary<int, DateTime> pitchAvailability = new Dictionary<int, DateTime>();
+            for (int p = 1; p <= pitchCount; p++)
+            {
+                pitchAvailability[p] = currentMatchTime;
+            }
+            List<Matches> scheduledMatches = new List<Matches>();
+
+            // Schedule matches evenly across pitches
+            while (poolMatches.Values.Any(pm => pm.Count > 0))
+            {
+                foreach (Pools pool in newPools)
+                {
+                    if (poolMatches[pool.ID].Count > 0)
+                    {
+                        // Find the earliest available pitch
+                        var earliestPitch = pitchAvailability.OrderBy(p => p.Value).First();
+                        int assignedPitch = earliestPitch.Key;
+                        DateTime matchStartTime = earliestPitch.Value;
+
+                        // Get next match for this pool
+                        Matches match = poolMatches[pool.ID].First();
+                        match.ScheduledMatchDateTime = matchStartTime;
+                        match.PitchNumber = assignedPitch;
+                        scheduledMatches.Add(match);
+                        poolMatches[pool.ID].RemoveAt(0);
+
+                        // Update pitch availability
+                        pitchAvailability[assignedPitch] = matchStartTime.AddMinutes(matchInterval);
+                    }
+                }
+            }
+            foreach (Matches match in scheduledMatches)
+            {
+                // Add matches to the database
+                context.Matches.Add(match);
+                context.SaveChanges();
+            }
+        }
+        else
+        {
+            //If there are fewer teams per pool than pools - Number of pools in equivalent to number of teams per pool therefore each team gets a pool based on standings from original pools.
+            int teamPerPoolCount = GetPoolTeamsList(existingPools[0].ID).Count;
+            int newPoolCount = teamPerPoolCount;
+            for (int i = 0; i < newPoolCount; i++)
+            {
+                sql = "INSERT INTO Pools (TournamentID, PoolNumber, PhaseNumber) VALUES (@p0, @p1, @p2)";
+                context.Database.ExecuteSqlRaw(sql, ID, i + 1, 2);
+            }
+            List<Pools> newPools = GetPoolsList(ID, 2);
+            foreach (Pools pool in existingPools)
+            {
+                List<PoolsTeams> poolTeamsList = GetPoolTeamsList(pool.ID);
+                for (int i = 0; i < poolTeamsList.Count; i++)
+                {
+                    sql = "INSERT INTO PoolTeams (PoolID, TeamID, GamesPlayed, GoalsFor, GoalsAgainst, GoalDifference, Points) VALUES (@p0, @p1, @p2, @p3, @p4, @p5, @p6)";
+                    context.Database.ExecuteSqlRaw(sql, newPools[i].ID, poolTeamsList[i].TeamID, 0, 0, 0, 0, 0);
+                }
+            }
+            Dictionary<int, List<Matches>> poolMatches = new Dictionary<int, List<Matches>>();
+            foreach (Pools pool in newPools)
+            {
+                sql = "SELECT TeamID FROM PoolTeams WHERE PoolID = @p0";
+                List<int> poolTeamIDs = context.PoolTeams.FromSqlRaw(sql, pool.ID).Select(pt => pt.TeamID).ToList();
+
+                sql = "SELECT PoolNumber FROM Pools WHERE ID = @p0";
+                int poolNumber = context.Pools.FromSqlRaw(sql, pool.ID).Select(p => p.PoolNumber).FirstOrDefault();
+
+                sql = "SELECT COUNT(*) FROM PoolTeams WHERE PoolID";
+                int teamPoolCount = context.PoolTeams.FromSqlRaw(sql, pool.ID).Count();
+
+                sql = "SELECT GameLength FROM Matches WHERE TournamentID = @p0"; 
+                double matchLength = context.Matches.FromSqlRaw(sql, ID).Select(m => m.GameLength).FirstOrDefault();
+
+                //Initialise the GenerateMatches class and generate the matches for the pool using the existing GenerateRoundRobin method
+                List<Matches> tempPoolMatches = GenerateRoundRobin(teamPoolCount, pitchCount, poolTeamIDs, pool.ID, matchInterval, currentMatchTime, matchLength);
+                poolMatches.Add(pool.ID, tempPoolMatches);
+            }
+            // Track pitch availability
+            Dictionary<int, DateTime> pitchAvailability = new Dictionary<int, DateTime>();
+            for (int p = 1; p <= pitchCount; p++)
+            {
+                pitchAvailability[p] = currentMatchTime;
+            }
+            List<Matches> scheduledMatches = new List<Matches>();
+
+            // Schedule matches evenly across pitches
+            while (poolMatches.Values.Any(pm => pm.Count > 0))
+            {
+                foreach (Pools pool in newPools)
+                {
+                    if (poolMatches[pool.ID].Count > 0)
+                    {
+                        // Find the earliest available pitch
+                        var earliestPitch = pitchAvailability.OrderBy(p => p.Value).First();
+                        int assignedPitch = earliestPitch.Key;
+                        DateTime matchStartTime = earliestPitch.Value;
+
+                        // Get next match for this pool
+                        Matches match = poolMatches[pool.ID].First();
+                        match.ScheduledMatchDateTime = matchStartTime;
+                        match.PitchNumber = assignedPitch;
+                        scheduledMatches.Add(match);
+                        poolMatches[pool.ID].RemoveAt(0);
+
+                        // Update pitch availability
+                        pitchAvailability[assignedPitch] = matchStartTime.AddMinutes(matchInterval);
+                    }
+                }
+            }
+            foreach (Matches match in scheduledMatches)
+            {
+                // Add matches to the database
+                context.Matches.Add(match);
+                context.SaveChanges();
+            }
+        }
+    }
+
+    private List<Matches> GetCompletedMatches()
+    {
+        using var context = DbFactory.CreateDbContext();
+        string sql = "SELECT * FROM Matches WHERE TournamentID = @p0 AND MatchComplete = 1";
+        List<Matches> matchCompletedList = context.Matches.FromSqlRaw(sql, ID).ToList();
+        return matchCompletedList;
+    }
+
+    public List<Matches> GenerateRoundRobin(int teamCount, int pitchCount, List<int> teamIDs, int? PoolID, int matchInterval, DateTime currentMatchTimeInput, double matchLength)
+    {
+        using var context = DbFactory.CreateDbContext();
+        // Round Robin Algorithm - Play everyone once - Match Generation and Times now working.
+        List<Matches> matches = new List<Matches>();
+        //Match Generation
+        int numberOfRounds = teamCount - 1;
+        int matchesPerRound = teamCount / 2;
+        DateTime currentMatchTime = currentMatchTimeInput;
+        int matchCounter = 0;
+
+        for (int round = 0; round < numberOfRounds; round++)
+        {
+            for (int match = 0; match < matchesPerRound; match++)
+            {
+                int home = (round + match) % (teamCount - 1);
+                int away = (teamCount - 1 - match + round) % (teamCount - 1);
+
+                // Last team stays in the same place while the others rotate around it
+                if (match == 0)
+                {
+                    away = teamCount - 1;
+                }
+
+                int PoolNumber = context.Pools.FromSqlRaw("SELECT PoolNumber FROM Pools WHERE ID = @p0", PoolID).Select(i => i.PoolNumber).FirstOrDefault();
+                
+                matches.Add(new Matches
+                    {
+                        TournamentID = ID,
+                        TeamIDHome = teamIDs[home],
+                        TeamIDAway = teamIDs[away],
+                        ScheduledMatchDateTime = currentMatchTime,
+                        PitchNumber = matchCounter + 1,
+                        PoolID = PoolID,
+                        GameLength = matchLength,
+                        Description = $"Pool {PoolNumber}",
+                        MatchComplete = false
+                    });
+                
+
+                if (pitchCount >= 2)
+                {
+                    matchCounter++;
+                    if (matchCounter == pitchCount)
+                    {
+                        matchCounter = 0;
+                        currentMatchTime = currentMatchTime.AddMinutes(matchInterval);
+                    }
+                }
+                if (pitchCount == 1)
+                {
+                    currentMatchTime = currentMatchTime.AddMinutes(matchInterval);
+                }
+            }
+        }
+
+        return matches;
+    }
+    private TeamStats CalculateTeamStatsForPoolTeam(int teamID)
+    {
+        TeamStats stats = new TeamStats
+            {
+                TeamID = teamID,
+                TeamName = GetTeamName(teamID),
+                GamesPlayed = 0,
+                GoalsFor = 0,
+                GoalsAgainst = 0,
+                GoalDifference = 0,
+                Points = 0
+            };
+
+        List<Matches> matches = GetCompletedMatches();
+
+        using var context = DbFactory.CreateDbContext();
+
+        foreach (Matches match in matches)
+        {
+            if ((match.TeamIDHome == teamID || match.TeamIDAway == teamID) && match.MatchComplete)
+            {
+                stats.GamesPlayed++;
+
+                // Get player IDs for the home and away teams
+                var homePlayerIDs = context.TeamSheetPlayers.FromSqlRaw("SELECT PlayerID FROM TeamSheetPlayers WHERE TeamSheetID = @p0", match.HomeTeamSheetID).Select(tsp => tsp.PlayerID).ToList();
+
+                var awayPlayerIDs = context.TeamSheetPlayers.FromSqlRaw("SELECT PlayerID FROM TeamSheetPlayers WHERE TeamSheetID = @p0", match.AwayTeamSheetID).Select(tsp => tsp.PlayerID).ToList();
+
+                // Calculate goals for and against
+                int homeGoals = context.PlayerGoals.FromSqlRaw("SELECT * FROM PlayerGoals WHERE MatchID = @p0 AND PlayerID IN (@p1)", match.ID, string.Join(",", homePlayerIDs)).Count();
+
+                int awayGoals = context.PlayerGoals.FromSqlRaw("SELECT * FROM PlayerGoals WHERE MatchID = @p0 AND PlayerID IN (@p1)", match.ID, string.Join(",", awayPlayerIDs)).Count();
+
+                if (match.TeamIDHome == teamID)
+                {
+                    stats.GoalsFor += homeGoals;
+                    stats.GoalsAgainst += awayGoals;
+                    if (homeGoals > awayGoals)
+                    {
+                        stats.Points += 3; // Win
+                    }
+                    else if (homeGoals == awayGoals)
+                    {
+                        stats.Points += 1; // Draw
+                    }
+                }
+                else if (match.TeamIDAway == teamID)
+                {
+                    stats.GoalsFor += awayGoals;
+                    stats.GoalsAgainst += homeGoals;
+                    if (awayGoals > homeGoals)
+                    {
+                        stats.Points += 3; // Win
+                    }
+                    else if (awayGoals == homeGoals)
+                    {
+                        stats.Points += 1; // Draw
+                    }
+                }
+            }
+        }
+
+        stats.GoalDifference = stats.GoalsFor - stats.GoalsAgainst;
+        return stats;
+    }
+
+    private int GetTeamScore(int matchID, int teamID)
+    {
+        using var context = DbFactory.CreateDbContext();
+        // Get player IDs for the team
+        List<int> playerIDs = context.TeamSheetPlayers
+            .FromSqlRaw("SELECT PlayerID FROM TeamSheetPlayers WHERE TeamSheetID = (SELECT ID FROM MatchTeamSheet WHERE MatchID = @p0 AND TeamID = @p1)", matchID, teamID)
+            .Select(tsp => tsp.PlayerID)
+            .ToList();
+
+        // Calculate the total goals scored by the team - UNSURE why this only works using entity framework and not rawsql
+        int teamGoals = context.PlayerGoals
+            .Where(pg => pg.MatchID == matchID && playerIDs.Contains(pg.PlayerID))
+            .Count();
+
+        return teamGoals;
+    }
+    
+
+    public class TeamStats
+    {
+        public int TeamID { get; set; }
+        public string TeamName { get; set; }
+        public int GamesPlayed { get; set; }
+        public int GoalsFor { get; set; }
+        public int GoalsAgainst { get; set; }
+        public int GoalDifference { get; set; }
+        public int Points { get; set; }
+    }
+}

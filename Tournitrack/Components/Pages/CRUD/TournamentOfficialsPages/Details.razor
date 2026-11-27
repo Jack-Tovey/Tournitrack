@@ -1,0 +1,64 @@
+﻿@page "/tournamentofficials/details"
+@using Microsoft.EntityFrameworkCore
+@using Tournitrack.Data.Models
+@inject IDbContextFactory<Tournitrack.Data.ApplicationDbContext> DbFactory
+@inject NavigationManager NavigationManager
+
+<PageTitle>Details</PageTitle>
+
+<h1>Details</h1>
+
+<div>
+    <h2>TournamentOfficials</h2>
+    <hr />
+    @if (tournamentofficials is null)
+    {
+        <p><em>Loading...</em></p>
+    }
+    else
+    {
+        <dl class="row">
+            <dt class="col-sm-2">TournamentID</dt>
+            <dd class="col-sm-10">@tournamentofficials.TournamentID</dd>
+            <dt class="col-sm-2">UserID</dt>
+            <dd class="col-sm-10">@tournamentofficials.UserID - @userName</dd>
+            <dt class="col-sm-2">RoleID</dt>
+            <dd class="col-sm-10">@tournamentofficials.RoleID - @roleName</dd>
+        </dl>
+        <div>
+            <a href="@($"/tournamentofficials/edit?id={tournamentofficials.ID}")">Edit</a> |
+            <a href="@($"/tournamentofficials")">Back to List</a>
+        </div>
+    }
+</div>
+
+@code {
+    private TournamentOfficials? tournamentofficials;
+    private string userName = string.Empty;
+    private string roleName = string.Empty;
+
+    [SupplyParameterFromQuery]
+    private int ID { get; set; }
+
+    // Method to initialize the component and load the TournamentOfficials entry details
+    protected override async Task OnInitializedAsync()
+    {
+        using var context = DbFactory.CreateDbContext();
+        // SQL query to get the TournamentOfficials entry by ID
+        tournamentofficials = await context.TournamentOfficials.FromSqlRaw("SELECT * FROM TournamentOfficials WHERE ID = @p0", ID).FirstOrDefaultAsync();
+
+        if (tournamentofficials is null)
+        {
+            NavigationManager.NavigateTo("notfound");
+        }
+        else
+        {
+            // SQL query to get the user name by UserID
+            userName = await context.Users.FromSqlRaw("SELECT UserName FROM AspNetUsers WHERE Id = @p0", tournamentofficials.UserID).Select(u => u.UserName).FirstOrDefaultAsync() ?? "Unknown";
+
+            // SQL query to get the role name by RoleID
+            roleName = await context.OfficialRoles.FromSqlRaw("SELECT RoleName FROM OfficialRoles WHERE ID = @p0", tournamentofficials.RoleID).Select(r => r.RoleName).FirstOrDefaultAsync() ?? "Unknown";
+        }
+    }
+}
+

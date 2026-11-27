@@ -1,0 +1,117 @@
+﻿@page "/playercards/edit"
+@rendermode InteractiveServer
+@using Microsoft.EntityFrameworkCore
+@using Tournitrack.Data.Models
+@inject IDbContextFactory<Tournitrack.Data.ApplicationDbContext> DbFactory
+@inject NavigationManager NavigationManager
+
+<PageTitle>Edit</PageTitle>
+
+<h1>Edit</h1>
+
+<h2>PlayerCards</h2>
+<hr />
+@if (PlayerCards is null)
+{
+    <p><em>Loading...</em></p>
+}
+else
+{
+    <div class="row">
+        <div class="col-md-4">
+            <!-- EditForm for editing an existing PlayerCards entry -->
+            <EditForm method="post" Model="PlayerCards" OnValidSubmit="UpdatePlayerCards" FormName="edit" Enhance>
+                <DataAnnotationsValidator />
+                <ValidationSummary role="alert" class="text-danger" />
+                <input type="hidden" name="PlayerCards.ID" value="@PlayerCards.ID" />
+                <div class="mb-3">
+                    <label for="playerid" class="form-label">PlayerID:</label>
+                    <!-- Dropdown for selecting a player, grouped by club -->
+                    <select id="playerid" @bind="PlayerCards.PlayerID" class="form-control">
+                        <option value="">Select Player</option>
+                        @foreach (Clubs club in Clubs)
+                        {
+                            <optgroup label="@club.Name">
+                                @foreach (Players player in Players.Where(p => p.ClubID == club.ID))
+                                {
+                                    <option value="@player.ID">@player.LastName, @player.FirstName</option>
+                                }
+                            </optgroup>
+                        }
+                    </select>
+                    <ValidationMessage For="() => PlayerCards.PlayerID" class="text-danger" />
+                </div>
+                <div class="mb-3">
+                    <label for="matchid" class="form-label">MatchID:</label>
+                    <InputNumber id="matchid" @bind-Value="PlayerCards.MatchID" class="form-control" />
+                    <ValidationMessage For="() => PlayerCards.MatchID" class="text-danger" />
+                </div>
+                <div class="mb-3">
+                    <label for="matchminute" class="form-label">MatchMinute:</label>
+                    <InputNumber id="matchminute" @bind-Value="PlayerCards.MatchMinute" class="form-control" />
+                    <ValidationMessage For="() => PlayerCards.MatchMinute" class="text-danger" />
+                </div>
+                <div class="mb-3">
+                    <label for="cardtype" class="form-label">CardType:</label>
+                    <!-- Dropdown for selecting a card type -->
+                    <select id="cardtype" @bind="PlayerCards.CardType" class="form-control">
+                        <option value="">Select Card Type</option>
+                        <option value="R">Red</option>
+                        <option value="Y">Yellow</option>
+                        <option value="G">Green</option>
+                    </select>
+                    <ValidationMessage For="() => PlayerCards.CardType" class="text-danger" />
+                </div>
+                <button type="submit" class="btn btn-primary">Save</button>
+            </EditForm>
+        </div>
+    </div>
+}
+
+<div>
+    <a href="/playercards">Back to List</a>
+</div>
+
+@code {
+    [SupplyParameterFromQuery]
+    private int ID { get; set; } // ID of the PlayerCards entry to be edited
+
+    [SupplyParameterFromForm]
+    private PlayerCards? PlayerCards { get; set; } // Model for PlayerCards
+    private List<Players> Players { get; set; } = new(); // List of players for the dropdown
+    private List<Clubs> Clubs { get; set; } = new(); // List of clubs for the dropdown
+
+    // Method to initialize the component and load player and club details
+    protected override async Task OnInitializedAsync()
+    {
+        using var context = DbFactory.CreateDbContext();
+        // SQL query to get the PlayerCards entry by ID
+        string sql = "SELECT * FROM PlayerCards WHERE ID = @p0";
+        PlayerCards = await context.PlayerCards.FromSqlRaw(sql, ID).FirstOrDefaultAsync();
+
+        if (PlayerCards is null)
+        {
+            NavigationManager.NavigateTo("notfound"); // Navigate to not found page if PlayerCards is null
+            return;
+        }
+
+        // SQL query to get player details
+        sql = "SELECT * FROM Players";
+        Players = await context.Players.FromSqlRaw(sql).ToListAsync();
+
+        // SQL query to get club details
+        sql = "SELECT * FROM Clubs";
+        Clubs = await context.Clubs.FromSqlRaw(sql).ToListAsync();
+    }
+
+    // Method to update the PlayerCards entry in the database
+    private async Task UpdatePlayerCards()
+    {
+        using var context = DbFactory.CreateDbContext();
+        // SQL query to update the PlayerCards entry
+        string sql = "UPDATE PlayerCards SET PlayerID = @p0, MatchID = @p1, MatchMinute = @p2, CardType = @p3 WHERE ID = @p4";
+        await context.Database.ExecuteSqlRawAsync(sql, PlayerCards!.PlayerID, PlayerCards.MatchID, PlayerCards.MatchMinute, PlayerCards.CardType, PlayerCards.ID);
+        // Navigate back to the list page after updating the entry
+        NavigationManager.NavigateTo("/playercards");
+    }
+}

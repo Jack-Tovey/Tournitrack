@@ -1,0 +1,118 @@
+﻿@page "/officialavailabilities/edit"
+@rendermode InteractiveServer
+@using Microsoft.EntityFrameworkCore
+@using Tournitrack.Data.Models
+@using Tournitrack.Data
+@inject IDbContextFactory<Tournitrack.Data.ApplicationDbContext> DbFactory
+@inject NavigationManager NavigationManager
+
+<PageTitle>Edit</PageTitle>
+
+<h1>Edit</h1>
+
+<h2>OfficialAvailability</h2>
+<hr />
+@if (OfficialAvailability is null)
+{
+    <p><em>Loading...</em></p>
+}
+else
+{
+    <div class="row">
+        <div class="col-md-4">
+            <!-- Form to edit the OfficialAvailability record -->
+            <EditForm method="post" Model="OfficialAvailability" OnValidSubmit="UpdateOfficialAvailability" FormName="edit" Enhance>
+                <DataAnnotationsValidator />
+                <ValidationSummary role="alert" />
+                <input type="hidden" name="OfficialAvailability.ID" value="@OfficialAvailability.ID" />
+                <div class="mb-3">
+                    <!-- Dropdown to select a user with the "Official" role -->
+                    <label for="userid" class="form-label">User:</label>
+                    <InputSelect id="userid" @bind-Value="OfficialAvailability.UserID" class="form-control">
+                        <option value="">Select a user</option>
+                        @foreach (var user in officialUsers)
+                        {
+                            <option value="@user.Id">@user.UserName</option>
+                        }
+                    </InputSelect>
+                    <ValidationMessage For="() => OfficialAvailability.UserID" class="text-danger" />
+                </div>
+                <div class="mb-3">
+                    <!-- Input for the date -->
+                    <label for="date" class="form-label">Date:</label>
+                    <InputDate id="date" @bind-Value="OfficialAvailability.Date" class="form-control" />
+                    <ValidationMessage For="() => OfficialAvailability.Date" class="text-danger" />
+                </div>
+                <div class="mb-3">
+                    <!-- Checkbox for morning availability -->
+                    <label for="morning" class="form-label">Morning:</label>
+                    <InputCheckbox id="morning" @bind-Value="OfficialAvailability.Morning" class="form-check-input" />
+                    <ValidationMessage For="() => OfficialAvailability.Morning" class="text-danger" />
+                </div>
+                <div class="mb-3">
+                    <!-- Checkbox for afternoon availability -->
+                    <label for="afternoon" class="form-label">Afternoon:</label>
+                    <InputCheckbox id="afternoon" @bind-Value="OfficialAvailability.Afternoon" class="form-check-input" />
+                    <ValidationMessage For="() => OfficialAvailability.Afternoon" class="text-danger" />
+                </div>
+                <div class="mb-3">
+                    <!-- Checkbox for evening availability -->
+                    <label for="evening" class="form-label">Evening:</label>
+                    <InputCheckbox id="evening" @bind-Value="OfficialAvailability.Evening" class="form-check-input" />
+                    <ValidationMessage For="() => OfficialAvailability.Evening" class="text-danger" />
+                </div>
+                <button type="submit" class="btn btn-primary">Save</button>
+            </EditForm>
+        </div>
+    </div>
+}
+
+<div>
+    <a href="/officialavailabilities">Back to List</a>
+</div>
+
+@code {
+    [SupplyParameterFromQuery]
+    private int ID { get; set; }
+
+    [SupplyParameterFromForm]
+    private OfficialAvailability? OfficialAvailability { get; set; }
+
+    // List to hold users with the "Official" role
+    private List<ApplicationUser> officialUsers = new();
+
+    // Method to initialize the component and load the OfficialAvailability record and users with the "Official" role
+    protected override async Task OnInitializedAsync()
+    {
+        using var context = DbFactory.CreateDbContext();
+        // Fetch the OfficialAvailability record using SQL query
+        OfficialAvailability ??= await context.OfficialAvailability.FromSqlRaw("SELECT * FROM OfficialAvailability WHERE ID = @p0", ID).FirstOrDefaultAsync();
+
+        // If the record is not found, navigate to the "notfound" page
+        if (OfficialAvailability is null)
+        {
+            NavigationManager.NavigateTo("notfound");
+        }
+
+        // Fetch users with the "Official" role using SQL query
+        string sql = @"
+            SELECT AspNetUsers.*
+            FROM AspNetUsers, AspNetUserRoles, AspNetRoles
+            WHERE AspNetUsers.Id = AspNetUserRoles.UserId
+            AND AspNetUserRoles.RoleId = AspNetRoles.Id
+            AND AspNetRoles.Name = 'Official'";
+        officialUsers = await context.Users.FromSqlRaw(sql).ToListAsync();
+    }
+
+    // Method to update the OfficialAvailability record
+    private async Task UpdateOfficialAvailability()
+    {
+        using var context = DbFactory.CreateDbContext();
+        // Update the OfficialAvailability record using SQL query
+        string sql = "UPDATE OfficialAvailability SET UserID = @p0, Date = @p1, Morning = @p2, Afternoon = @p3, Evening = @p4 WHERE ID = @p5";
+        await context.Database.ExecuteSqlRawAsync(sql, OfficialAvailability!.UserID, OfficialAvailability.Date, OfficialAvailability.Morning, OfficialAvailability.Afternoon, OfficialAvailability.Evening, OfficialAvailability.ID);
+
+        // Navigate back to the list of official availabilities
+        NavigationManager.NavigateTo("/officialavailabilities");
+    }
+}

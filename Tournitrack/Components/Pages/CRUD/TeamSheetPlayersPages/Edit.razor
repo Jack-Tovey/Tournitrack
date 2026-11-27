@@ -1,0 +1,102 @@
+﻿@page "/teamsheetplayers/edit"
+@rendermode InteractiveServer
+@using Microsoft.EntityFrameworkCore
+@using Tournitrack.Data.Models
+@inject IDbContextFactory<Tournitrack.Data.ApplicationDbContext> DbFactory
+@inject NavigationManager NavigationManager
+
+<PageTitle>Edit</PageTitle>
+
+<h1>Edit</h1>
+
+<h2>TeamSheetPlayers</h2>
+<hr />
+@if (TeamSheetPlayers is null)
+{
+    <p><em>Loading...</em></p>
+}
+else
+{
+    <div class="row">
+        <div class="col-md-4">
+            <!-- EditForm for updating a TeamSheetPlayers entry -->
+            <EditForm method="post" Model="TeamSheetPlayers" OnValidSubmit="UpdateTeamSheetPlayers" FormName="edit" Enhance>
+                <DataAnnotationsValidator />
+                <ValidationSummary role="alert" />
+                <input type="hidden" name="TeamSheetPlayers.ID" value="@TeamSheetPlayers.ID" />
+                <div class="mb-3">
+                    <label for="teamsheetid" class="form-label">TeamSheetID:</label>
+                    <InputNumber id="teamsheetid" @bind-Value="TeamSheetPlayers.TeamSheetID" class="form-control" />
+                    <ValidationMessage For="() => TeamSheetPlayers.TeamSheetID" class="text-danger" />
+                </div>
+                <div class="mb-3">
+                    <label for="playerid" class="form-label">PlayerID:</label>
+                    <!-- Dropdown for selecting a player, grouped by club -->
+                    <select id="playerid" @bind="TeamSheetPlayers.PlayerID" class="form-control">
+                        <option value="">Select Player</option>
+                        @foreach (Clubs club in Clubs)
+                        {
+                            <optgroup label="@club.Name">
+                                @foreach (Players player in Players.Where(p => p.ClubID == club.ID))
+                                {
+                                    <option value="@player.ID">@player.shirtNumber - @player.LastName, @player.FirstName</option>
+                                }
+                            </optgroup>
+                        }
+                    </select>
+                    <ValidationMessage For="() => TeamSheetPlayers.PlayerID" class="text-danger" />
+                </div>
+                <button type="submit" class="btn btn-primary">Save</button>
+            </EditForm>
+        </div>
+    </div>
+}
+
+<div>
+    <a href="/teamsheetplayers">Back to List</a>
+</div>
+
+@code {
+    [SupplyParameterFromQuery]
+    private int ID { get; set; }
+
+    [SupplyParameterFromForm]
+    private TeamSheetPlayers? TeamSheetPlayers { get; set; }
+
+    private List<Players> Players { get; set; } = new(); // List of players for the dropdown
+    private List<Clubs> Clubs { get; set; } = new(); // List of clubs for the dropdown
+
+    // Method to initialize the component and load the TeamSheetPlayers entry and player/club details
+    protected override async Task OnInitializedAsync()
+    {
+        using var context = DbFactory.CreateDbContext();
+        // SQL query to get the TeamSheetPlayers entry by ID
+        TeamSheetPlayers ??= await context.TeamSheetPlayers.FromSqlRaw("SELECT * FROM TeamSheetPlayers WHERE ID = @p0", ID).FirstOrDefaultAsync();
+
+        if (TeamSheetPlayers is null)
+        {
+            NavigationManager.NavigateTo("notfound");
+        }
+
+        // SQL query to get the list of players
+        string SQL = "SELECT * FROM Players";
+        Players = await context.Players.FromSqlRaw(SQL).ToListAsync();
+
+        // SQL query to get the list of clubs
+        SQL = "SELECT * FROM Clubs";
+        Clubs = await context.Clubs.FromSqlRaw(SQL).ToListAsync();
+    }
+
+    // Method to update the TeamSheetPlayers entry in the database
+    private async Task UpdateTeamSheetPlayers()
+    {
+        using var context = DbFactory.CreateDbContext();
+        // SQL query to update the TeamSheetPlayers entry
+        string sql = "UPDATE TeamSheetPlayers SET TeamSheetID = @p0, PlayerID = @p1 WHERE ID = @p2";
+        await context.Database.ExecuteSqlRawAsync(sql, TeamSheetPlayers!.TeamSheetID, TeamSheetPlayers.PlayerID, TeamSheetPlayers.ID);
+
+        // Navigate back to the list page after updating the entry
+        NavigationManager.NavigateTo("/teamsheetplayers");
+    }
+}
+

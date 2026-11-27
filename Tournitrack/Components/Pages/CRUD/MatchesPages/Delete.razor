@@ -1,0 +1,122 @@
+﻿@page "/matches/delete"
+@rendermode InteractiveServer
+@using Microsoft.EntityFrameworkCore
+@using Tournitrack.Data.Models
+@inject IDbContextFactory<Tournitrack.Data.ApplicationDbContext> DbFactory
+@inject NavigationManager NavigationManager
+
+<PageTitle>Delete</PageTitle>
+
+<h1>Delete</h1>
+
+<p>Are you sure you want to delete this?</p>
+<div>
+    <h2>Matches</h2>
+    <hr />
+    @if (matches is null)
+    {
+        <p><em>Loading...</em></p>
+    }
+    else
+    {
+        <!-- Display match details -->
+        <dl class="row">
+            <dt class="col-sm-2">TournamentID</dt>
+            <dd class="col-sm-10">@matches.TournamentID</dd>
+        </dl>
+        <dl class="row">
+            <dt class="col-sm-2">ScheduledMatchDateTime</dt>
+            <dd class="col-sm-10">@matches.ScheduledMatchDateTime</dd>
+        </dl>
+        <dl class="row">
+            <dt class="col-sm-2">ActualMatchDateTime</dt>
+            <dd class="col-sm-10">@matches.ActualMatchDateTime</dd>
+        </dl>
+        <!-- Display home team ID and name -->
+        <dl class="row">
+            <dt class="col-sm-2">TeamIDHome</dt>
+            <dd class="col-sm-10">@matches.TeamIDHome - @homeTeamName</dd>
+        </dl>
+        <dl class="row">
+            <dt class="col-sm-2">HomeTeamSheetID</dt>
+            <dd class="col-sm-10">@matches.HomeTeamSheetID</dd>
+        </dl>
+        <!-- Display away team ID and name -->
+        <dl class="row">
+            <dt class="col-sm-2">TeamIDAway</dt>
+            <dd class="col-sm-10">@matches.TeamIDAway - @awayTeamName</dd>
+        </dl>
+        <dl class="row">
+            <dt class="col-sm-2">AwayTeamSheetID</dt>
+            <dd class="col-sm-10">@matches.AwayTeamSheetID</dd>
+        </dl>
+        <dl class="row">
+            <dt class="col-sm-2">PitchNumber</dt>
+            <dd class="col-sm-10">@matches.PitchNumber</dd>
+        </dl>
+        <dl class="row">
+            <dt class="col-sm-2">PoolID</dt>
+            <dd class="col-sm-10">@matches.PoolID</dd>
+        </dl>
+        <dl class="row">
+            <dt class="col-sm-2">Description</dt>
+            <dd class="col-sm-10">@matches.Description</dd>
+        </dl>
+        <dl class="row">
+            <dt class="col-sm-2">GameLength</dt>
+            <dd class="col-sm-10">@matches.GameLength</dd>
+        </dl>
+        <dl class="row">
+            <dt class="col-sm-2">MatchComplete</dt>
+            <dd class="col-sm-10">@matches.MatchComplete</dd>
+        </dl>
+        <dl class="row">
+            <dt class="col-sm-2">ResultNeeded</dt>
+            <dd class="col-sm-10">@matches.ResultNeeded</dd>
+        </dl>
+        <!-- Button to delete the match -->
+        <EditForm method="post" Model="matches" OnValidSubmit="DeleteMatches" FormName="delete" Enhance>
+            <button type="submit" class="btn btn-danger" disabled="@(matches is null)">Delete</button> |
+            <a href="/matches">Back to List</a>
+        </EditForm>
+    }
+</div>
+
+@code {
+    private Matches? matches;
+    private string homeTeamName = string.Empty; 
+    private string awayTeamName = string.Empty; 
+
+    [SupplyParameterFromQuery]
+    private int ID { get; set; } // Match ID from URL
+
+    protected override async Task OnInitializedAsync()
+    {
+        using var context = DbFactory.CreateDbContext();
+        // Get match details
+        string SQL = "SELECT * FROM Matches WHERE ID = @p0";
+        matches = await context.Matches.FromSqlRaw(SQL, ID).FirstOrDefaultAsync();
+
+        if (matches is null)
+        {
+            NavigationManager.NavigateTo("notfound");
+            return;
+        }
+
+        // Get home team name
+        SQL = "SELECT TeamName FROM Teams WHERE ID = @p0";
+        homeTeamName = await context.Teams.FromSqlRaw(SQL, matches.TeamIDHome).Select(t => t.TeamName).FirstOrDefaultAsync() ?? "Unknown";
+
+        // Get away team name
+        SQL = "SELECT TeamName FROM Teams WHERE ID = @p0";
+        awayTeamName = await context.Teams.FromSqlRaw(SQL, matches.TeamIDAway).Select(t => t.TeamName).FirstOrDefaultAsync() ?? "Unknown";
+    }
+
+    private async Task DeleteMatches() //Delete Match from DB
+    {
+        using var context = DbFactory.CreateDbContext();
+        string SQL = "DELETE FROM Matches WHERE ID = @p0";
+        await context.Database.ExecuteSqlRawAsync(SQL, matches!.ID);
+        NavigationManager.NavigateTo("/matches"); // Redirect to the matches list page after deleting the match
+    }
+}

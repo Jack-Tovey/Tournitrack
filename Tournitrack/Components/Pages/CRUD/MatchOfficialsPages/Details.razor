@@ -1,0 +1,64 @@
+﻿@page "/matchofficials/details"
+@using Microsoft.EntityFrameworkCore
+@using Tournitrack.Data.Models
+@inject IDbContextFactory<Tournitrack.Data.ApplicationDbContext> DbFactory
+@inject NavigationManager NavigationManager
+
+<PageTitle>Details</PageTitle>
+
+<h1>Details</h1>
+
+<div>
+    <h2>MatchOfficials</h2>
+    <hr />
+    @if (matchofficials is null)
+    {
+        <p><em>Loading...</em></p>
+    }
+    else
+    {
+        <!-- Display match official details -->
+        <dl class="row">
+            <dt class="col-sm-2">MatchID</dt>
+            <dd class="col-sm-10">@matchofficials.MatchID</dd>
+            <dt class="col-sm-2">UserID</dt>
+            <dd class="col-sm-10">@matchofficials.UserID - @userName</dd>
+            <dt class="col-sm-2">RoleID</dt>
+            <dd class="col-sm-10">@matchofficials.RoleID - @roleName</dd>
+        </dl>
+        <!-- Links to edit the match official or go back to the list -->
+        <div>
+            <a href="@($"/matchofficials/edit?id={matchofficials.ID}")">Edit</a> |
+            <a href="@($"/matchofficials")">Back to List</a>
+        </div>
+    }
+</div>
+
+@code {
+    private MatchOfficials? matchofficials;
+    private string userName = string.Empty;
+    private string roleName = string.Empty;
+
+    [SupplyParameterFromQuery]
+    private int ID { get; set; } // Match official ID from URL
+
+    // Method to initialize the component and load match official details
+    protected override async Task OnInitializedAsync()
+    {
+        using var context = DbFactory.CreateDbContext();
+        // Get match official details
+        matchofficials = await context.MatchOfficials.FromSqlRaw("SELECT * FROM MatchOfficials WHERE ID = @p0", ID).FirstOrDefaultAsync();
+
+        if (matchofficials is null)
+        {
+            NavigationManager.NavigateTo("notfound");
+            return;
+        }
+
+        // Get user name
+        userName = await context.Users.FromSqlRaw("SELECT UserName FROM AspNetUsers WHERE Id = @p0", matchofficials.UserID).Select(u => u.UserName).FirstOrDefaultAsync() ?? "Unknown";
+
+        // Get role name
+        roleName = await context.OfficialRoles.FromSqlRaw("SELECT RoleName FROM OfficialRoles WHERE ID = @p0", matchofficials.RoleID).Select(r => r.RoleName).FirstOrDefaultAsync() ?? "Unknown";
+    }
+}

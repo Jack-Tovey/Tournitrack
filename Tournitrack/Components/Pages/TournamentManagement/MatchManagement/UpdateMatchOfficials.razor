@@ -1,0 +1,159 @@
+﻿@page "/UpdateMatch/Officials"
+@rendermode InteractiveServer
+@using Microsoft.EntityFrameworkCore;
+@using Tournitrack.Data
+@using Tournitrack.Data.Models
+@inject IDbContextFactory<ApplicationDbContext> DbFactory;
+@inject NavigationManager NavigationManager;
+@inject AuthenticationStateProvider AuthenticationStateProvider;
+
+<h3>UpdateMatchOfficials</h3>
+<AuthorizeView>
+    <Authorized>
+        @if (!isAuthorized)
+        {
+            <h1>YOU'RE NOT AUTHORISED TO VIEW THIS PAGE!</h1>
+            <h3>Redirecting to Home page in 5s, if this does not happen automatically please click the following link.</h3>
+            <a href="/">Home</a>
+        }
+        else
+        {
+            <h2> Add Officials to match</h2>   
+            <div class="row">
+                <div class="col-md-9">
+                    <h4>Umpire 1</h4>
+                    <select class="form-control" @onchange="(e) => OnUmpire1Selected(e)">
+                        @*Default selection in dropdown*@
+                        <option value="">--Please choose an option--</option>
+                        @foreach (ApplicationUser u in umpireList) 
+                        {
+                            <option value=@u.Id>@u.LastName, @u.FirstName</option>
+                        }
+                    </select>
+                </div>
+                <div class="col-md-9">
+                    <h4>Umpire 2</h4>
+                    <select class="form-control" @onchange="(e) => OnUmpire2Selected(e)">
+                        @*Default selection in dropdown*@
+                        <option value="">--Please choose an option--</option>
+                        @foreach (ApplicationUser u in umpireList)
+                        {
+                            <option value=@u.Id>@u.LastName, @u.FirstName</option>
+                        }
+                    </select>
+                </div>
+            </div>
+            <br />
+            <h4>Match Official</h4>
+            <select class="form-control" @onchange="(e) => OnMOSelected(e)">
+                @*Default selection in dropdown*@
+                <option value="">--Please choose an option--</option>
+                @foreach (ApplicationUser u in MOList)
+                {
+                    <option value=@u.Id>@u.LastName, @u.FirstName</option>
+                }
+            </select>
+            <button class="btn btn-primary" @onclick="UpdateOfficials">Update Officials</button>
+        }
+    </Authorized>
+    <NotAuthorized>
+        <h1>YOU'RE NOT AUTHORISED TO VIEW THIS PAGE!</h1>
+        <h3>Redirecting to Home page in 5s, if this does not happen automatically please click the following link.</h3>
+        <a href="/">Home</a>
+    </NotAuthorized>
+</AuthorizeView>
+
+@code {
+    [SupplyParameterFromQuery] private int ID { get; set; }
+    public InputModel Input { get; set; } = new InputModel();
+    Matches matchContext;
+    List<ApplicationUser> umpireList;
+    List<ApplicationUser> MOList;
+    List<ApplicationUser> TOList;
+    List<ApplicationUser> judgeList;
+    private string? player;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+        var user = authState.User;
+        if (!user.IsInRole("Administrator") && !user.IsInRole("TournamentDirector") && !user.IsInRole("Official") && !user.IsInRole("OfficialManager"))
+        {
+            isAuthorized = false;
+            StateHasChanged(); // Trigger a re-render to show the unauthorized message
+            _ = RedirectAfterDelay();
+        }
+        //authorisation code ^^^
+
+        //Get the match details
+
+        using var context = DbFactory.CreateDbContext();
+        string sql = "SELECT * FROM Matches WHERE ID = @p0";
+        matchContext = context.Matches.FromSqlRaw(sql, ID).FirstOrDefault();
+        //Get Tournament Umpire List
+        
+        sql = @"SELECT AspNetUsers.* 
+                FROM AspNetUsers, TournamentOfficials 
+                WHERE AspNetUsers.ID = TournamentOfficials.UserID 
+                AND TournamentOfficials.TournamentID = (SELECT TournamentID FROM Matches WHERE ID = @p0) 
+                AND TournamentOfficials.RoleID = (SELECT ID FROM OfficialRoles WHERE RoleName = @p1)";
+        umpireList = context.Users.FromSqlRaw(sql, ID, "Umpire").ToList();
+        MOList = context.Users.FromSqlRaw(sql, ID, "Match Official").ToList();
+        TOList = context.Users.FromSqlRaw(sql, ID, "Technical Official").ToList();
+        judgeList = context.Users.FromSqlRaw(sql, ID, "Judge").ToList();
+    }
+    //Authorisation code
+    private bool isAuthorized = true;
+
+    private async Task RedirectAfterDelay()
+    {
+        await Task.Delay(5000);
+        NavigationManager.NavigateTo("/");
+    }
+    public class InputModel
+    {
+         public string umpire1ID { get; set; }   
+         public string umpire2ID { get; set; }
+    }
+    private void OnUmpire1Selected(ChangeEventArgs e)
+    {
+            Input.umpire1ID = e.Value.ToString();
+    }
+    private void OnUmpire2Selected(ChangeEventArgs e)
+    {
+        Input.umpire2ID = e.Value.ToString();
+    }
+    private void OnMOSelected(ChangeEventArgs e)
+    {
+        Input.umpire2ID = e.Value.ToString();
+    }
+
+    private async Task UpdateOfficials()
+    {
+        using var context = DbFactory.CreateDbContext();
+
+        // Get role IDs
+        int umpireRoleID = await context.Database.ExecuteSqlRawAsync("SELECT ID FROM OfficialRoles WHERE RoleName = 'Umpire'");
+        int matchOfficialRoleID = await context.Database.ExecuteSqlRawAsync("SELECT ID FROM OfficialRoles WHERE RoleName = 'Match Official'");
+        int technicalOfficialRoleID = await context.Database.ExecuteSqlRawAsync("SELECT ID FROM OfficialRoles WHERE RoleName = 'Technical Official'");
+        int judgeRoleID = await context.Database.ExecuteSqlRawAsync("SELECT ID FROM OfficialRoles WHERE RoleName = 'Judge'");
+
+        // Delete existing records for the match
+        await context.Database.ExecuteSqlRawAsync("DELETE FROM MatchOfficials WHERE MatchID = @p0", ID);
+
+        // Insert new records
+        if (!string.IsNullOrEmpty(Input.umpire1ID))
+        {
+            await context.Database.ExecuteSqlRawAsync("INSERT INTO MatchOfficials (MatchID, UserID, RoleID) VALUES (@p0, @p1, @p2)", ID, Input.umpire1ID, umpireRoleID);
+        }
+
+        if (!string.IsNullOrEmpty(Input.umpire2ID))
+        {
+            await context.Database.ExecuteSqlRawAsync("INSERT INTO MatchOfficials (MatchID, UserID, RoleID) VALUES (@p0, @p1, @p2)", ID, Input.umpire2ID, umpireRoleID);
+        }
+
+        //TO BE FINSIHED - NEED TO ADD MO AND TO TODO
+
+        NavigationManager.NavigateTo($"/MatchDetails/{ID}");
+    }
+}

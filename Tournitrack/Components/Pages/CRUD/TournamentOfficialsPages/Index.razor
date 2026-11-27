@@ -1,0 +1,45 @@
+﻿@page "/tournamentofficials"
+@using Microsoft.EntityFrameworkCore
+@using Microsoft.AspNetCore.Components.QuickGrid
+@using Tournitrack.Data.Models
+@using Tournitrack.Data
+@implements IAsyncDisposable
+@inject IDbContextFactory<Tournitrack.Data.ApplicationDbContext> DbFactory
+
+<PageTitle>Index</PageTitle>
+
+<h1>Index</h1>
+
+<p>
+    <a href="tournamentofficials/create">Create New</a>
+</p>
+
+<!-- QuickGrid to display the list of TournamentOfficials -->
+<QuickGrid Class="table" Items="tournamentOfficials.AsQueryable()">
+    <PropertyColumn Property="tournamentofficials => tournamentofficials.TournamentID" />
+    <PropertyColumn Property="tournamentofficials => tournamentofficials.UserID" />
+    <PropertyColumn Property="tournamentofficials => tournamentofficials.RoleID" />
+
+    <TemplateColumn Context="tournamentofficials">
+        <a href="@($"tournamentofficials/edit?id={tournamentofficials.ID}")">Edit</a> |
+        <a href="@($"tournamentofficials/details?id={tournamentofficials.ID}")">Details</a> |
+        <a href="@($"tournamentofficials/delete?id={tournamentofficials.ID}")">Delete</a>
+    </TemplateColumn>
+</QuickGrid>
+
+@code {
+    private ApplicationDbContext context = default!;
+    private List<TournamentOfficials> tournamentOfficials = new();
+
+    // Method to initialize the component and load the list of TournamentOfficials
+    protected override async Task OnInitializedAsync()
+    {
+        context = DbFactory.CreateDbContext();
+        // SQL query to get the list of TournamentOfficials
+        string sql = "SELECT * FROM TournamentOfficials";
+        tournamentOfficials = await context.TournamentOfficials.FromSqlRaw(sql).ToListAsync();
+    }
+
+    // Dispose the DbContext when the component is disposed
+    public async ValueTask DisposeAsync() => await context.DisposeAsync();
+}

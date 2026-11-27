@@ -1,0 +1,188 @@
+﻿@page "/GenerateTournament"
+@rendermode InteractiveServer
+@using Microsoft.AspNetCore.Authorization;
+@using Tournitrack.Data.Models;
+@using Microsoft.AspNetCore.Identity;
+@using Microsoft.CodeAnalysis.CSharp.Syntax;
+@using Microsoft.DiaSymReader;
+@using Microsoft.EntityFrameworkCore;
+@using Microsoft.EntityFrameworkCore.Migrations.Operations;
+@using Tournitrack.Data;
+@inject IDbContextFactory<Tournitrack.Data.ApplicationDbContext> DbFactory;
+@inject UserManager<ApplicationUser> _UserManager;
+@inject RoleManager<IdentityRole> _RoleManager;
+@inject AuthenticationStateProvider AuthenticationStateProvider;
+@inject NavigationManager NavigationManager;
+
+<AuthorizeView>
+    <Authorized> @*Check if the users is meant to access this page, they must have the Admin or TournamentDirector role.*@
+        @if (@context.User.IsInRole("Administrator") || @context.User.IsInRole("TournamentDirector"))
+        {
+            <h3>Generate Tournament - Please fill in the info below and press generate.</h3>
+            <h6>Tournament Name</h6>
+            @*Tournament Name Box*@
+            <input class="form-control" type="text"
+            placeholder="e.g. Wiltshire County Cup 2019" @bind="Input.TournamentName" />
+            <h6>Tournament Date</h6>
+            @*Tournament Date Box*@
+            <input class="form-control" type="date" @bind="Input.TournamentDate" />
+            <h6>Tournament Location</h6>
+            @*Tournament Location Box
+                TODO - Add Google maps API to autofill location/address based on user input.
+            *@
+            <input class="form-control" type="text" @bind="Input.TournamentLocation" />
+            <h6>Number of Teams</h6>
+            @*Number of Teams Box*@
+            <input class="form-control" type="number" min="2" step="1" placeholder="2" @bind="Input.TournamentTeamCount" />
+            @*For loops for generating drop-down boxes*@
+            @for (int i = 0; i < Input.TournamentTeamCount; i++)
+            {
+                int index = i;
+                <h6>Team @(i + 1)</h6>
+                <select class="form-control" @onchange="(e) => OnTeamSelected(e, index)">
+                    @*Default selection in dropdown*@
+                    <option value=0>--Please choose an option--</option>
+                    @*Populate the dropdown with the list of clubs as subheadings and teams as options this does so by looping through all the clubs and teams which are now stored in a class
+                    this could have been done as a recurring SQL statement, but it was decided it would be too strenuous and not efficient as storing the teams in RAM for local processing. 
+                    
+                    TODO - add autofill searching function for when more teams get added - https://docs.blazorbootstrap.com/forms/autocomplete#server-side-data - TODO*@
+                    @foreach (Clubs Club in ClubsList)
+                    {
+                        <optgroup label=@Club.Name>
+                            @foreach (Teams team in TeamsList.Where(t => t.ClubID == Club.ID))
+                            {
+                                <option value=@team.ID>@team.TeamName</option>
+                                <h6>testing</h6>
+                            }
+                        </optgroup>
+                    }
+                </select>
+            }
+            <h6></h6>
+            @*Button to run the subroutine "GenerateTourni"*@
+            <button class="btn btn-primary" @onclick="GenerateTourni">Generate</button>
+        }
+        @*If the user is not in the correct role but logged into the system, they will be shown this message.*@
+        @if (!@context.User.IsInRole("Administrator") && !@context.User.IsInRole("TournamentDirector"))
+        {
+            <h1>
+                You are not authorized to view this page!
+                Please go away
+            </h1>
+        }
+    </Authorized>
+    <NotAuthorized>
+        @*If the user is not logged in, this message will be shown.*@
+        <h1>
+            You are not authorized to view this page!
+            Please go away
+        </h1>
+    </NotAuthorized>
+</AuthorizeView>
+
+@code {
+    
+    
+    
+    //Error Logging, for debugging purposes linking teamid to the list index.
+    private void OnTeamSelected(ChangeEventArgs e, int index)
+    {
+        if (int.TryParse(e.Value.ToString(), out int teamId))
+        {
+            if (index >= 0 && index < Input.TeamIDs.Count)
+            {
+                Input.TeamIDs[index] = teamId;
+                // Proceed with your logic
+            }
+            else
+            {
+                // Handle the case where the index is out of range
+                Console.WriteLine("Index out of range: " + index);
+            }
+        }
+        else
+        {
+            // Handle the case where the index is not a valid integer
+            Console.WriteLine("Invalid index value: " + e.Value);
+        }
+    }
+
+    // Class to hold user input from HTML form.
+    public class InputModel
+    {
+        public string TournamentName { get; set; }
+        public DateOnly TournamentDate { get; set; }
+        public string TournamentLocation { get; set; }
+        public int TeamID { get; set; }
+        private int _tournamentTeamCount;
+        public int TournamentTeamCount
+        {
+            get => _tournamentTeamCount;
+            set
+            {
+                if (_tournamentTeamCount != value)
+                {
+                    _tournamentTeamCount = value;
+                    ResizeTeamIDsList();
+                }
+            }
+        }
+
+        public List<int?> TeamIDs { get; set; } = new List<int?>();
+        
+        //Subroutine to resize the list of TeamIDs to match the number of teams in the tournament and the drop-down which links to it.
+        private void ResizeTeamIDsList()
+        {
+            if (TeamIDs.Count < _tournamentTeamCount)
+            {
+                for (int i = TeamIDs.Count; i < _tournamentTeamCount; i++)
+                {
+                    TeamIDs.Add(null);
+                }
+            }
+            else if (TeamIDs.Count > _tournamentTeamCount)
+            {
+                TeamIDs.RemoveRange(_tournamentTeamCount, TeamIDs.Count - _tournamentTeamCount);
+            }
+        }
+    }
+    //Initialise the InputModel class as well as the CLub and Team Lists for loading the drop-downs.
+    public InputModel Input { get; set; } = new InputModel();
+    public List<Clubs> ClubsList = new List<Clubs>();
+    public List<Teams> TeamsList = new List<Teams>();
+    //subroutine run on page load to populate the Club and Team lists, get the current date and initialise the DB context.
+    protected override async Task OnInitializedAsync()
+    {
+        Input.TournamentDate = DateOnly.FromDateTime(DateTime.Now);
+        using var context = DbFactory.CreateDbContext();
+        ClubsList = await context.Clubs.ToListAsync();
+        ClubsList = ClubsList.OrderBy(c => c.Name).ToList();
+        TeamsList = await context.Teams.ToListAsync();
+        TeamsList = TeamsList.OrderBy(t => t.TeamName).ToList();
+    }
+
+    private async Task GenerateTourni()
+    {
+        //Initialise the DB context and run and fill in the SQL commands to create the tournament in Tournaments.
+        using var context = DbFactory.CreateDbContext();
+        var sql = "INSERT INTO Tournaments (TournamentName, TournamentDate, Location) VALUES (@p0, @p1, @p2)";
+        context.Database.ExecuteSqlRaw(sql, Input.TournamentName, Input.TournamentDate, Input.TournamentLocation);
+        //Use the ID of the tournament to link the teams to the tournament in the TournamentTeams table using a new SQL statement using the previous context.
+        sql = "SELECT ID FROM Tournaments WHERE TournamentName = @p0 AND TournamentDate = @p1 AND Location = @p2";
+        var tournamentID = await context.Tournaments.FromSqlRaw(sql, Input.TournamentName, Input.TournamentDate, Input.TournamentLocation).Select(t => t.ID).SingleOrDefaultAsync();
+        Console.WriteLine($"Tournament Added - {Input.TournamentName} with ID {tournamentID}");
+        //Loop to add all the teams selected and link them to the tournament using the TournamentTeams table.
+        foreach (var teamID in Input.TeamIDs)
+        {
+            if (teamID.HasValue && teamID.Value != 0)
+            {
+                sql = "INSERT INTO TournamentTeams (TournamentID, TeamID) VALUES (@p0, @p1)";
+                context.Database.ExecuteSqlRaw(sql, tournamentID, teamID.Value);
+                Console.WriteLine($"Team {teamID.Value} added to Tournament {tournamentID}");
+            }
+        }
+        //Log stating the tournamnet has been created and the teams have been added as well as the redirect to the match generation page.
+        Console.WriteLine($"Teams Added to Tournament {Input.TournamentName} with ID {tournamentID}");
+        NavigationManager.NavigateTo($"GenerateMatches?ID={tournamentID}");
+    }
+}

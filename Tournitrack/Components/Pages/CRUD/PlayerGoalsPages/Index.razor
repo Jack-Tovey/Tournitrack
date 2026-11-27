@@ -1,0 +1,46 @@
+﻿@page "/playergoals"
+@using Microsoft.EntityFrameworkCore
+@using Microsoft.AspNetCore.Components.QuickGrid
+@using Tournitrack.Data.Models
+@using Tournitrack.Data
+@implements IAsyncDisposable
+@inject IDbContextFactory<Tournitrack.Data.ApplicationDbContext> DbFactory
+
+<PageTitle>Index</PageTitle>
+
+<h1>Index</h1>
+
+<p>
+    <a href="playergoals/create">Create New</a> <!-- Link to create a new PlayerGoals entry -->
+</p>
+
+<!-- QuickGrid to display PlayerGoals entries -->
+<QuickGrid Class="table" Items="playerGoalsList.AsQueryable()">
+    <PropertyColumn Property="playergoals => playergoals.PlayerID" />
+    <PropertyColumn Property="playergoals => playergoals.MatchID" />
+    <PropertyColumn Property="playergoals => playergoals.GoalType" />
+    <PropertyColumn Property="playergoals => playergoals.MatchMinute" />
+
+    <TemplateColumn Context="playergoals">
+        <a href="@($"playergoals/edit?id={playergoals.ID}")">Edit</a> |
+        <a href="@($"playergoals/details?id={playergoals.ID}")">Details</a> |
+        <a href="@($"playergoals/delete?id={playergoals.ID}")">Delete</a>
+    </TemplateColumn>
+</QuickGrid>
+
+@code {
+    private ApplicationDbContext context = default!; // Database context
+    private List<PlayerGoals> playerGoalsList = new(); // List to store PlayerGoals entries
+
+    // Method to initialize the component and load PlayerGoals entries
+    protected override async Task OnInitializedAsync()
+    {
+        context = DbFactory.CreateDbContext();
+        // SQL query to get all PlayerGoals entries
+        string sql = "SELECT * FROM PlayerGoals";
+        playerGoalsList = await context.PlayerGoals.FromSqlRaw(sql).ToListAsync();
+    }
+
+    // Method to dispose the database context
+    public async ValueTask DisposeAsync() => await context.DisposeAsync();
+}

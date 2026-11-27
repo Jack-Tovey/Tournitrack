@@ -1,0 +1,50 @@
+﻿@page "/officialavailabilities"
+@using Microsoft.EntityFrameworkCore
+@using Microsoft.AspNetCore.Components.QuickGrid
+@using Tournitrack.Data.Models
+@using Tournitrack.Data
+@implements IAsyncDisposable
+@inject IDbContextFactory<Tournitrack.Data.ApplicationDbContext> DbFactory
+
+<PageTitle>Index</PageTitle>
+
+<h1>Index</h1>
+
+<p>
+    <a href="officialavailabilities/create">Create New</a>
+</p>
+
+<!-- QuickGrid to display the list of official availabilities -->
+<QuickGrid Class="table" Items="officialAvailabilityList.AsQueryable()">
+    <PropertyColumn Property="officialavailability => officialavailability.UserID" />
+    <PropertyColumn Property="officialavailability => officialavailability.Date" />
+    <PropertyColumn Property="officialavailability => officialavailability.Morning" />
+    <PropertyColumn Property="officialavailability => officialavailability.Afternoon" />
+    <PropertyColumn Property="officialavailability => officialavailability.Evening" />
+
+    <TemplateColumn Context="officialavailability">
+        <a href="@($"officialavailabilities/edit?id={officialavailability.ID}")">Edit</a> |
+        <a href="@($"officialavailabilities/details?id={officialavailability.ID}")">Details</a> |
+        <a href="@($"officialavailabilities/delete?id={officialavailability.ID}")">Delete</a>
+    </TemplateColumn>
+</QuickGrid>
+
+@code {
+    private List<OfficialAvailability> officialAvailabilityList = new();
+
+    // Method to initialize the component and load official availability details
+    protected override async Task OnInitializedAsync()
+    {
+        using var context = DbFactory.CreateDbContext();
+        // Get official availability details using raw SQL
+        string sql = "SELECT * FROM OfficialAvailability";
+        officialAvailabilityList = await context.OfficialAvailability.FromSqlRaw(sql).ToListAsync();
+    }
+
+    // Method to dispose the DbContext
+    public async ValueTask DisposeAsync()
+    {
+        await DbFactory.CreateDbContext().DisposeAsync();
+    }
+}
+

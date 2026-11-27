@@ -1,0 +1,53 @@
+﻿@page "/tournaments/details"
+@using Microsoft.EntityFrameworkCore
+@using Tournitrack.Data.Models
+@inject IDbContextFactory<Tournitrack.Data.ApplicationDbContext> DbFactory
+@inject NavigationManager NavigationManager
+
+<PageTitle>Details</PageTitle>
+
+<h1>Details</h1>
+
+<div>
+    <h2>Tournaments</h2>
+    <hr />
+    @if (tournaments is null)
+    {
+        <p><em>Loading...</em></p>
+    }
+    else {
+        <dl class="row">
+            <dt class="col-sm-2">TournamentName</dt>
+            <dd class="col-sm-10">@tournaments.TournamentName</dd>
+            <dt class="col-sm-2">Location</dt>
+            <dd class="col-sm-10">@tournaments.Location</dd>
+            <dt class="col-sm-2">TournamentDate</dt>
+            <dd class="col-sm-10">@tournaments.TournamentDate</dd>
+        </dl>
+        <div>
+            <a href="@($"/tournaments/edit?id={tournaments.ID}")">Edit</a> |
+            <a href="@($"/tournaments")">Back to List</a>
+        </div>
+    }
+</div>
+
+@code {
+    private Tournaments? tournaments;
+
+    [SupplyParameterFromQuery]
+    private int ID { get; set; }
+
+    // Method to initialize the component and load the Tournaments entry details
+    protected override async Task OnInitializedAsync()
+    {
+        using var context = DbFactory.CreateDbContext();
+        // SQL query to get the Tournaments entry by ID
+        string sql = "SELECT * FROM Tournaments WHERE ID = @p0";
+        tournaments = await context.Tournaments.FromSqlRaw(sql, ID).FirstOrDefaultAsync();
+
+        if (tournaments is null)
+        {
+            NavigationManager.NavigateTo("notfound");
+        }
+    }
+}

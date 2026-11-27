@@ -1,0 +1,66 @@
+﻿@page "/playercards/details"
+@using Microsoft.EntityFrameworkCore
+@using Tournitrack.Data.Models
+@inject IDbContextFactory<Tournitrack.Data.ApplicationDbContext> DbFactory
+@inject NavigationManager NavigationManager
+
+<PageTitle>Details</PageTitle>
+
+<h1>Details</h1>
+
+<div>
+    <h2>PlayerCards</h2>
+    <hr />
+    @if (playercards is null)
+    {
+        <p><em>Loading...</em></p>
+    }
+    else
+    {
+        <dl class="row">
+            <dt class="col-sm-2">PlayerID</dt>
+            <dd class="col-sm-10">@playercards.PlayerID - @playerName</dd> <!-- Display PlayerID and Player's Name -->
+            <dt class="col-sm-2">MatchID</dt>
+            <dd class="col-sm-10">@playercards.MatchID</dd> <!-- Display MatchID -->
+            <dt class="col-sm-2">MatchMinute</dt>
+            <dd class="col-sm-10">@playercards.MatchMinute</dd> <!-- Display MatchMinute -->
+            <dt class="col-sm-2">CardType</dt>
+            <dd class="col-sm-10">@playercards.CardType</dd> <!-- Display CardType -->
+        </dl>
+        <div>
+            <a href="@($"/playercards/edit?id={playercards.ID}")">Edit</a> | <!-- Link to edit the entry -->
+            <a href="@($"/playercards")">Back to List</a> <!-- Link to go back to the list -->
+        </div>
+    }
+</div>
+
+@code {
+    private PlayerCards? playercards; // Model for PlayerCards
+    private string playerName = string.Empty; // Variable to store player's name
+
+    [SupplyParameterFromQuery]
+    private int ID { get; set; } // ID of the PlayerCards entry to be displayed
+
+    // Method to initialize the component and load player card details
+    protected override async Task OnInitializedAsync()
+    {
+        using var context = DbFactory.CreateDbContext();
+        // SQL query to get the PlayerCards entry by ID
+        string sql = "SELECT * FROM PlayerCards WHERE ID = @p0";
+        playercards = await context.PlayerCards.FromSqlRaw(sql, ID).FirstOrDefaultAsync();
+
+        if (playercards is null)
+        {
+            NavigationManager.NavigateTo("notfound"); // Navigate to not found page if playercards is null
+            return;
+        }
+
+        // SQL query to get the player's name by PlayerID
+        sql = "SELECT * FROM Players WHERE ID = @p0";
+        Players? player = await context.Players.FromSqlRaw(sql, playercards.PlayerID).FirstOrDefaultAsync();
+        if (player != null)
+        {
+            playerName = $"{player.LastName}, {player.FirstName}"; // Set player's name
+        }
+    }
+}

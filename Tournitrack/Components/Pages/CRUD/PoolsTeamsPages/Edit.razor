@@ -1,0 +1,91 @@
+﻿@page "/poolsteams/edit"
+@rendermode InteractiveServer
+@using Microsoft.EntityFrameworkCore
+@using Tournitrack.Data.Models
+@inject IDbContextFactory<Tournitrack.Data.ApplicationDbContext> DbFactory
+@inject NavigationManager NavigationManager
+
+<PageTitle>Edit</PageTitle>
+
+<h1>Edit</h1>
+
+<h2>PoolsTeams</h2>
+<hr />
+@if (PoolsTeams is null)
+{
+    <p><em>Loading...</em></p>
+}
+else
+{
+    <div class="row">
+        <div class="col-md-4">
+            <!-- EditForm for updating a PoolsTeams entry -->
+            <EditForm method="post" Model="PoolsTeams" OnValidSubmit="UpdatePoolsTeams" FormName="edit" Enhance>
+                <DataAnnotationsValidator />
+                <ValidationSummary role="alert" />
+                <input type="hidden" name="PoolsTeams.ID" value="@PoolsTeams.ID" />
+                <div class="mb-3">
+                    <label for="poolid" class="form-label">PoolID:</label>
+                    <InputNumber id="poolid" @bind-Value="PoolsTeams.PoolID" class="form-control" />
+                    <ValidationMessage For="() => PoolsTeams.PoolID" class="text-danger" />
+                </div>
+                <div class="mb-3">
+                    <label for="teamid" class="form-label">TeamID:</label>
+                    <!-- Dropdown for selecting a team -->
+                    <select id="teamid" @bind="PoolsTeams.TeamID" class="form-control">
+                        <option value="">Select Team</option>
+                        @foreach (var team in Teams)
+                        {
+                            <option value="@team.ID">@team.TeamName</option>
+                        }
+                    </select>
+                    <ValidationMessage For="() => PoolsTeams.TeamID" class="text-danger" />
+                </div>
+                <button type="submit" class="btn btn-primary">Save</button>
+            </EditForm>
+        </div>
+    </div>
+}
+
+<div>
+    <a href="/poolsteams">Back to List</a>
+</div>
+
+@code {
+    [SupplyParameterFromQuery]
+    private int ID { get; set; }
+
+    [SupplyParameterFromForm]
+    private PoolsTeams? PoolsTeams { get; set; }
+
+    private List<Teams> Teams { get; set; } = new();
+
+    // Method to initialize the component and load the PoolsTeams entry and teams list
+    protected override async Task OnInitializedAsync()
+    {
+        using var context = DbFactory.CreateDbContext();
+        // SQL query to get the PoolsTeams entry by ID
+        string sql = "SELECT * FROM PoolTeams WHERE ID = @p0";
+        PoolsTeams ??= await context.PoolTeams.FromSqlRaw(sql, ID).FirstOrDefaultAsync();
+
+        if (PoolsTeams is null)
+        {
+            NavigationManager.NavigateTo("notfound");
+        }
+
+        // SQL query to get the list of teams
+        string teamsSql = "SELECT * FROM Teams";
+        Teams = await context.Teams.FromSqlRaw(teamsSql).ToListAsync();
+    }
+
+    // Method to update the PoolsTeams entry in the database
+    private async Task UpdatePoolsTeams()
+    {
+        using var context = DbFactory.CreateDbContext();
+        // SQL query to update the PoolsTeams entry
+        string sql = "UPDATE PoolTeams SET PoolID = @p0, TeamID = @p1 WHERE ID = @p2";
+        await context.Database.ExecuteSqlRawAsync(sql, PoolsTeams!.PoolID, PoolsTeams.TeamID, PoolsTeams.ID);
+
+        NavigationManager.NavigateTo("/poolsteams");
+    }
+}

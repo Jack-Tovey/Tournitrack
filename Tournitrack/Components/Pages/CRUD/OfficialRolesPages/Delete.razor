@@ -1,0 +1,70 @@
+﻿@page "/officialroles/delete"
+@rendermode InteractiveServer
+@using Microsoft.EntityFrameworkCore
+@using Tournitrack.Data.Models
+@inject IDbContextFactory<Tournitrack.Data.ApplicationDbContext> DbFactory
+@inject NavigationManager NavigationManager
+
+<PageTitle>Delete</PageTitle>
+
+<h1>Delete</h1>
+
+<p>Are you sure you want to delete this?</p>
+<div>
+    <h2>OfficialRoles</h2>
+    <hr />
+    @if (officialroles is null)
+    {
+        <p><em>Loading...</em></p>
+    }
+    else
+    {
+        <!-- Display the details of the OfficialRoles record -->
+        <dl class="row">
+            <dt class="col-sm-2">RoleName</dt>
+            <dd class="col-sm-10">@officialroles.RoleName</dd>
+        </dl>
+        <!-- Button to delete the OfficialRoles record -->
+        <EditForm method="post" Model="officialroles" OnValidSubmit="DeleteOfficialRoles" FormName="delete" Enhance>
+            <button type="submit" class="btn btn-danger" disabled="@(officialroles is null)">Delete</button> |
+            <a href="/officialroles">Back to List</a>
+        </EditForm>
+    }
+</div>
+
+@code {
+    // The OfficialRoles record to be deleted
+    private OfficialRoles? officialroles;
+
+    // The ID of the OfficialRoles record to be deleted supplied from the URL
+    [SupplyParameterFromQuery]
+    private int ID { get; set; }
+
+    // Method to initialize the component and load the OfficialRoles record
+    protected override async Task OnInitializedAsync()
+    {
+        using var context = DbFactory.CreateDbContext();
+        // Fetch the OfficialRoles record using SQL query
+        officialroles = await context.OfficialRoles.FromSqlRaw("SELECT * FROM OfficialRoles WHERE ID = @p0", ID).FirstOrDefaultAsync();
+
+        // If the record is not found, navigate to the "notfound" page
+        if (officialroles is null)
+        {
+            NavigationManager.NavigateTo("notfound");
+        }
+    }
+
+    // Method to delete the OfficialRoles record
+    private async Task DeleteOfficialRoles()
+    {
+        using var context = DbFactory.CreateDbContext();
+        // Delete Records referencing OfficialRoles record to be deleted
+        await context.Database.ExecuteSqlRawAsync("DELETE FROM TournamentOfficials WHERE RoleID = @p0", officialroles.ID);
+        await context.Database.ExecuteSqlRawAsync("DELETE FROM MatchOfficials WHERE RoleID = @p0", officialroles.ID);
+        // Delete the OfficialRoles record using SQL query
+        await context.Database.ExecuteSqlRawAsync("DELETE FROM OfficialRoles WHERE ID = @p0", officialroles!.ID);
+        // Navigate back to the list of official roles
+        NavigationManager.NavigateTo("/officialroles");
+    }
+}
+

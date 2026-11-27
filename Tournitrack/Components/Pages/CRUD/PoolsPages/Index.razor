@@ -1,0 +1,41 @@
+﻿@page "/pools"
+@using Microsoft.EntityFrameworkCore
+@using Microsoft.AspNetCore.Components.QuickGrid
+@using Tournitrack.Data.Models
+@using Tournitrack.Data
+@inject IDbContextFactory<Tournitrack.Data.ApplicationDbContext> DbFactory
+
+<PageTitle>Index</PageTitle>
+
+<h1>Index</h1>
+
+<p>
+    <a href="pools/create">Create New</a>
+</p>
+
+<!-- QuickGrid to display the list of pools -->
+<QuickGrid Class="table" Items="poolsList.AsQueryable()">
+    <PropertyColumn Property="pools => pools.TournamentID" />
+    <PropertyColumn Property="pools => pools.PoolNumber" />
+    <PropertyColumn Property="pools => pools.PhaseNumber" />
+
+    <TemplateColumn Context="pools">
+        <a href="@($"pools/edit?id={pools.ID}")">Edit</a> |
+        <a href="@($"pools/details?id={pools.ID}")">Details</a> |
+        <a href="@($"pools/delete?id={pools.ID}")">Delete</a>
+    </TemplateColumn>
+</QuickGrid>
+
+@code {
+    // List to hold the pools data
+    private List<Pools> poolsList = new();
+
+    // Method to initialize the component and load pools details
+    protected override async Task OnInitializedAsync()
+    {
+        using var context = DbFactory.CreateDbContext();
+        // Get pools details using SQL Query
+        string sql = "SELECT * FROM Pools";
+        poolsList = await context.Pools.FromSqlRaw(sql).ToListAsync();
+    }
+}

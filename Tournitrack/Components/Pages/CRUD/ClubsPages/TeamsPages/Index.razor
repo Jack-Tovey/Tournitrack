@@ -1,0 +1,43 @@
+﻿@page "/clubs/teams"
+@using Microsoft.EntityFrameworkCore
+@using Microsoft.AspNetCore.Components.QuickGrid
+@using Tournitrack.Data.Models
+@using Tournitrack.Data
+@implements IAsyncDisposable
+@inject IDbContextFactory<Tournitrack.Data.ApplicationDbContext> DbFactory
+
+<PageTitle>Index</PageTitle>
+
+<h1>Index</h1>
+
+<p>
+    <a href=@($"clubs/teams/create?clubID={ClubID}")>Create New</a>
+</p>
+
+<QuickGrid Class="table" Items="filteredTeams.AsQueryable()">
+    <PropertyColumn Property="teams => teams.TeamName" />
+    <PropertyColumn Property="teams => teams.ClubID" />
+    
+    <TemplateColumn Context="teams">
+        <a href="@($"clubs/teams/edit?id={teams.ID}")">Edit</a> |
+        <a href="@($"clubs/teams/details?id={teams.ID}")">Details</a> |
+        <a href="@($"clubs/teams/delete?id={teams.ID}")">Delete</a>
+    </TemplateColumn>
+</QuickGrid>
+
+@code {
+
+    [SupplyParameterFromQuery]
+    public int ClubID { get; set; }
+
+    private ApplicationDbContext context = default!;
+    private List<Teams> filteredTeams;
+    protected override void OnInitialized()
+    {
+        context = DbFactory.CreateDbContext();
+        string sql = "SELECT * FROM Teams WHERE ClubID = @p0";
+        filteredTeams = context.Teams.FromSqlRaw(sql, ClubID).ToList();
+    }
+
+    public async ValueTask DisposeAsync() => await context.DisposeAsync();
+}

@@ -1,0 +1,94 @@
+﻿@page "/matchofficials/create"
+@rendermode InteractiveServer
+@using Microsoft.EntityFrameworkCore
+@using Tournitrack.Data
+@using Tournitrack.Data.Models
+@inject IDbContextFactory<Tournitrack.Data.ApplicationDbContext> DbFactory
+@inject NavigationManager NavigationManager
+
+<PageTitle>Create</PageTitle>
+
+<h1>Create</h1>
+
+<h2>MatchOfficials</h2>
+<hr />
+<div class="row">
+    <div class="col-md-4">
+        <!-- Form to create a new match official -->
+        <EditForm method="post" Model="MatchOfficials" OnValidSubmit="AddMatchOfficials" FormName="create" Enhance>
+            <DataAnnotationsValidator />
+            <ValidationSummary class="text-danger" role="alert" />
+            <!-- MatchID Input -->
+            <div class="mb-3">
+                <label for="matchid" class="form-label">MatchID:</label>
+                <InputNumber id="matchid" @bind-Value="MatchOfficials.MatchID" class="form-control" />
+                <ValidationMessage For="() => MatchOfficials.MatchID" class="text-danger" />
+            </div>
+            <!-- UserID Dropdown -->
+            <div class="mb-3">
+                <label for="userid" class="form-label">UserID:</label>
+                <select id="userid" @bind="MatchOfficials.UserID" class="form-control">
+                    <option value="">Select User</option>
+                    @foreach (var user in Users)
+                    {
+                        <option value="@user.Id">@user.LastName, @user.FirstName</option>
+                    }
+                </select>
+                <ValidationMessage For="() => MatchOfficials.UserID" class="text-danger" />
+            </div>
+            <!-- RoleID Dropdown -->
+            <div class="mb-3">
+                <label for="roleid" class="form-label">RoleID:</label>
+                <select id="roleid" @bind="MatchOfficials.RoleID" class="form-control">
+                    <option value="">Select Role</option>
+                    @foreach (OfficialRoles role in Roles)
+                    {
+                        <option value="@role.ID">@role.RoleName</option>
+                    }
+                </select>
+                <ValidationMessage For="() => MatchOfficials.RoleID" class="text-danger" />
+            </div>
+            <!-- Submit Button -->
+            <button type="submit" class="btn btn-primary">Create</button>
+        </EditForm>
+    </div>
+</div>
+
+<div>
+    <a href="/matchofficials">Back to List</a>
+</div>
+
+@code {
+    [SupplyParameterFromForm]
+    private MatchOfficials MatchOfficials { get; set; } = new();
+    private List<ApplicationUser> Users { get; set; } = new();
+    private List<OfficialRoles> Roles { get; set; } = new();
+
+    // Method to initialize the component and load user details
+    protected override async Task OnInitializedAsync()
+    {
+        using var context = DbFactory.CreateDbContext();
+        // Get user details sorted by last name and then first name, and filter by role "Official"
+        string SQL = @"
+            SELECT AspNetUsers.*
+            FROM AspNetUsers, AspNetUserRoles, AspNetRoles
+            WHERE AspNetUsers.Id = AspNetUserRoles.UserId
+            AND AspNetUserRoles.RoleId = AspNetRoles.Id
+            AND AspNetRoles.Name = 'Official'
+            ORDER BY AspNetUsers.LastName, AspNetUsers.FirstName";
+        Users = await context.Users.FromSqlRaw(SQL).ToListAsync();
+
+        // Get role details
+        SQL = "SELECT * FROM OfficialRoles";
+        Roles = await context.OfficialRoles.FromSqlRaw(SQL).ToListAsync();
+    }
+
+    // Method to add a new match official to the database using raw SQL
+    private async Task AddMatchOfficials()
+    {
+        using var context = DbFactory.CreateDbContext();
+        string SQL = "INSERT INTO MatchOfficials (MatchID, UserID, RoleID) VALUES (@p0, @p1, @p2)"; // Add new record to DB
+        await context.Database.ExecuteSqlRawAsync(SQL, MatchOfficials.MatchID, MatchOfficials.UserID, MatchOfficials.RoleID);
+        NavigationManager.NavigateTo("/matchofficials"); // Redirect to the match officials list page after creating the match official
+    }
+}

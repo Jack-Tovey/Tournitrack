@@ -1,0 +1,49 @@
+﻿@page "/officialroles/create"
+@rendermode InteractiveServer
+@using Microsoft.EntityFrameworkCore
+@using Tournitrack.Data.Models
+@inject IDbContextFactory<Tournitrack.Data.ApplicationDbContext> DbFactory
+@inject NavigationManager NavigationManager
+
+<PageTitle>Create</PageTitle>
+
+<h1>Create</h1>
+
+<h2>OfficialRoles</h2>
+<hr />
+<div class="row">
+    <div class="col-md-4">
+        <EditForm method="post" Model="OfficialRoles" OnValidSubmit="AddOfficialRoles" FormName="create" Enhance>
+            <DataAnnotationsValidator />
+            <ValidationSummary class="text-danger" role="alert"/>
+            <div class="mb-3">
+                <!-- Input for the role name -->
+                <label for="rolename" class="form-label">RoleName:</label> 
+                <InputText id="rolename" @bind-Value="OfficialRoles.RoleName" class="form-control" /> 
+                <ValidationMessage For="() => OfficialRoles.RoleName" class="text-danger" /> 
+            </div>        
+            <button type="submit" class="btn btn-primary">Create</button>
+        </EditForm>
+    </div>
+</div>
+
+<div>
+    <a href="/officialroles">Back to List</a>
+</div>
+
+@code {
+    // Model to hold the OfficialRoles data
+    [SupplyParameterFromForm]
+    private OfficialRoles OfficialRoles { get; set; } = new();
+
+    // Method to add a new OfficialRoles record
+    private async Task AddOfficialRoles()
+    {
+        using var context = DbFactory.CreateDbContext();
+        // Insert the new OfficialRoles record using SQL Query
+        string sql = "INSERT INTO OfficialRoles (RoleName) VALUES (@p0)";
+        await context.Database.ExecuteSqlRawAsync(sql, OfficialRoles.RoleName);
+        // Navigate back to the list of official roles
+        NavigationManager.NavigateTo("/officialroles");
+    }
+}

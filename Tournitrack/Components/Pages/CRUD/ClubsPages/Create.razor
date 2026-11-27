@@ -1,0 +1,44 @@
+﻿@page "/clubs/create"
+@rendermode InteractiveServer
+@using Microsoft.EntityFrameworkCore
+@using Tournitrack.Data.Models
+@inject IDbContextFactory<Tournitrack.Data.ApplicationDbContext> DbFactory
+@inject NavigationManager NavigationManager
+
+<PageTitle>Create</PageTitle>
+
+<h1>Create</h1>
+
+<h2>Clubs</h2>
+<hr />
+<div class="row">
+    <div class="col-md-4">
+        <EditForm method="post" Model="Clubs" OnValidSubmit="AddClubs" FormName="create" Enhance>
+            <DataAnnotationsValidator />
+            <ValidationSummary class="text-danger" role="alert"/>
+            <div class="mb-3">
+                <label for="name" class="form-label">Name:</label> 
+                <InputText id="name" @bind-Value="Clubs.Name" class="form-control" /> 
+                <ValidationMessage For="() => Clubs.Name" class="text-danger" /> 
+            </div>        
+            <button type="submit" class="btn btn-primary">Create</button>
+        </EditForm>
+    </div>
+</div>
+
+<div>
+    <a href="/clubs">Back to List</a>
+</div>
+
+@code {
+    [SupplyParameterFromForm]
+    private Clubs Clubs { get; set; } = new();
+
+    private async Task AddClubs()
+    {
+        using var context = DbFactory.CreateDbContext();
+        string sql = "INSERT INTO Clubs (Name) VALUES (@p0)";
+        await context.Database.ExecuteSqlRawAsync(sql, Clubs.Name);
+        NavigationManager.NavigateTo("/clubs");
+    }
+}

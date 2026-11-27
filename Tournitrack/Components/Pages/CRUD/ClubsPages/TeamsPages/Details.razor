@@ -1,0 +1,48 @@
+﻿@page "/clubs/teams/details"
+@using Microsoft.EntityFrameworkCore
+@using Tournitrack.Data.Models
+@inject IDbContextFactory<Tournitrack.Data.ApplicationDbContext> DbFactory
+@inject NavigationManager NavigationManager
+
+<PageTitle>Details</PageTitle>
+
+<h1>Details</h1>
+
+<div>
+    <h2>Teams</h2>
+    <hr />
+    @if (teams is null)
+    {
+        <p><em>Loading...</em></p>
+    }
+    else {
+        <dl class="row">
+            <dt class="col-sm-2">TeamName</dt>
+            <dd class="col-sm-10">@teams.TeamName</dd>
+            <dt class="col-sm-2">ClubID</dt>
+            <dd class="col-sm-10">@teams.ClubID</dd>
+        </dl>
+        <div>
+            <a href="@($"/clubs/teams/edit?id={teams.ID}")">Edit</a> |
+            <a href="@($"/ClubTeamManager")">Back to List</a>
+        </div>
+    }
+</div>
+
+@code {
+    private Teams? teams;
+
+    [SupplyParameterFromQuery]
+    private int ID { get; set; }
+
+    protected override async Task OnInitializedAsync()
+    {
+        using var context = DbFactory.CreateDbContext();
+        teams = await context.Teams.FromSqlRaw("SELECT * FROM Teams WHERE ID = @p0", ID).FirstOrDefaultAsync();
+
+        if (teams is null)
+        {
+            NavigationManager.NavigateTo("notfound");
+        }
+    }
+}

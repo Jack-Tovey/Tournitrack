@@ -1,0 +1,89 @@
+﻿@page "/pools/edit"
+@rendermode InteractiveServer
+@using Microsoft.EntityFrameworkCore
+@using Tournitrack.Data.Models
+@inject IDbContextFactory<Tournitrack.Data.ApplicationDbContext> DbFactory
+@inject NavigationManager NavigationManager
+
+<PageTitle>Edit</PageTitle>
+
+<h1>Edit</h1>
+
+<h2>Pools</h2>
+<hr />
+@if (Pools is null)
+{
+    <p><em>Loading...</em></p>
+}
+else
+{
+    <div class="row">
+        <div class="col-md-4">
+            <!-- Form to edit the Pools record -->
+            <EditForm method="post" Model="Pools" OnValidSubmit="UpdatePools" FormName="edit" Enhance>
+                <DataAnnotationsValidator />
+                <ValidationSummary role="alert" />
+                <input type="hidden" name="Pools.ID" value="@Pools.ID" />
+                <div class="mb-3">
+                    <!-- Input for the tournament ID -->
+                    <label for="tournamentid" class="form-label">TournamentID:</label>
+                    <InputNumber id="tournamentid" @bind-Value="Pools.TournamentID" class="form-control" />
+                    <ValidationMessage For="() => Pools.TournamentID" class="text-danger" />
+                </div>
+                <div class="mb-3">
+                    <!-- Input for the pool number -->
+                    <label for="poolnumber" class="form-label">PoolNumber:</label>
+                    <InputNumber id="poolnumber" @bind-Value="Pools.PoolNumber" class="form-control" />
+                    <ValidationMessage For="() => Pools.PoolNumber" class="text-danger" />
+                </div>
+                <div class="mb-3">
+                    <!-- Input for the phase number -->
+                    <label for="phasenumber" class="form-label">PhaseNumber:</label>
+                    <InputNumber id="phasenumber" @bind-Value="Pools.PhaseNumber" class="form-control" />
+                    <ValidationMessage For="() => Pools.PhaseNumber" class="text-danger" />
+                </div>
+                <button type="submit" class="btn btn-primary">Save</button>
+            </EditForm>
+        </div>
+    </div>
+}
+
+<div>
+    <a href="/pools">Back to List</a>
+</div>
+
+@code {
+    // The ID of the Pools record to be edited, supplied from the URL
+    [SupplyParameterFromQuery]
+    private int ID { get; set; }
+
+    // The Pools record to be edited
+    [SupplyParameterFromForm]
+    private Pools? Pools { get; set; }
+
+    // Method to initialize the component and load the Pools record
+    protected override async Task OnInitializedAsync()
+    {
+        using var context = DbFactory.CreateDbContext();
+        // Fetch the Pools record using SQL query
+        Pools ??= await context.Pools.FromSqlRaw("SELECT * FROM Pools WHERE ID = @p0", ID).FirstOrDefaultAsync();
+
+        // If the record is not found, navigate to the "notfound" page
+        if (Pools is null)
+        {
+            NavigationManager.NavigateTo("notfound");
+        }
+    }
+
+    // Method to update the Pools record
+    private async Task UpdatePools()
+    {
+        using var context = DbFactory.CreateDbContext();
+        // Update the Pools record using SQL query
+        string sql = "UPDATE Pools SET TournamentID = @p0, PoolNumber = @p1, PhaseNumber = @p2 WHERE ID = @p3";
+        await context.Database.ExecuteSqlRawAsync(sql, Pools!.TournamentID, Pools.PoolNumber, Pools.PhaseNumber, Pools.ID);
+
+        // Navigate back to the list of pools
+        NavigationManager.NavigateTo("/pools");
+    }
+}

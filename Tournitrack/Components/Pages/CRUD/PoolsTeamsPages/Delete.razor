@@ -1,0 +1,74 @@
+﻿@page "/poolsteams/delete"
+@rendermode InteractiveServer
+@using Microsoft.EntityFrameworkCore
+@using Tournitrack.Data.Models
+@inject IDbContextFactory<Tournitrack.Data.ApplicationDbContext> DbFactory
+@inject NavigationManager NavigationManager
+
+<PageTitle>Delete</PageTitle>
+
+<h1>Delete</h1>
+
+<p>Are you sure you want to delete this?</p>
+<div>
+    <h2>PoolsTeams</h2>
+    <hr />
+    @if (poolsteams is null)
+    {
+        <p><em>Loading...</em></p>
+    }
+    else
+    {
+        <dl class="row">
+            <dt class="col-sm-2">PoolID</dt>
+            <dd class="col-sm-10">@poolsteams.PoolID</dd>
+        </dl>
+        <dl class="row">
+            <dt class="col-sm-2">TeamID</dt>
+            <dd class="col-sm-10">@poolsteams.TeamID - @teamName</dd>
+        </dl>
+        <!-- Button for deleting a PoolsTeams entry -->
+        <EditForm method="post" Model="poolsteams" OnValidSubmit="DeletePoolsTeams" FormName="delete" Enhance>
+            <button type="submit" class="btn btn-danger" disabled="@(poolsteams is null)">Delete</button> |
+            <a href="/poolsteams">Back to List</a>
+        </EditForm>
+    }
+</div>
+
+@code {
+    private PoolsTeams? poolsteams;
+    private string teamName = string.Empty;
+
+    [SupplyParameterFromQuery]
+    private int ID { get; set; }
+
+    // Method to initialize the component and load the PoolsTeams entry to be deleted
+    protected override async Task OnInitializedAsync()
+    {
+        using var context = DbFactory.CreateDbContext();
+        // SQL query to get the PoolsTeams entry by ID
+        string sql = "SELECT * FROM PoolTeams WHERE ID = @p0";
+        poolsteams = await context.PoolTeams.FromSqlRaw(sql, ID).FirstOrDefaultAsync();
+
+        if (poolsteams is null)
+        {
+            NavigationManager.NavigateTo("notfound");
+        }
+        else
+        {
+            // SQL query to get the team name by TeamID
+            string teamSql = "SELECT TeamName FROM Teams WHERE ID = @p0";
+            teamName = await context.Teams.FromSqlRaw(teamSql, poolsteams.TeamID).Select(t => t.TeamName).FirstOrDefaultAsync() ?? "Unknown";
+        }
+    }
+
+    // Method to delete the PoolsTeams entry from the database
+    private async Task DeletePoolsTeams()
+    {
+        using var context = DbFactory.CreateDbContext();
+        // SQL query to delete the PoolsTeams entry by ID
+        string sql = "DELETE FROM PoolTeams WHERE ID = @p0";
+        await context.Database.ExecuteSqlRawAsync(sql, poolsteams!.ID);
+        NavigationManager.NavigateTo("/poolsteams");
+    }
+}

@@ -1,0 +1,116 @@
+﻿@page "/matchofficials/edit"
+@rendermode InteractiveServer
+@using Microsoft.EntityFrameworkCore
+@using Tournitrack.Data
+@using Tournitrack.Data.Models
+@inject IDbContextFactory<Tournitrack.Data.ApplicationDbContext> DbFactory
+@inject NavigationManager NavigationManager
+
+<PageTitle>Edit</PageTitle>
+
+<h1>Edit</h1>
+
+<h2>MatchOfficials</h2>
+<hr />
+@if (MatchOfficials is null)
+{
+    <p><em>Loading...</em></p>
+}
+else
+{
+    <div class="row">
+        <div class="col-md-4">
+            <!-- Form to edit the match official details -->
+            <EditForm method="post" Model="MatchOfficials" OnValidSubmit="UpdateMatchOfficials" FormName="edit" Enhance>
+                <DataAnnotationsValidator />
+                <ValidationSummary role="alert" />
+                <input type="hidden" name="MatchOfficials.ID" value="@MatchOfficials.ID" />
+                <!-- MatchID Input -->
+                <div class="mb-3">
+                    <label for="matchid" class="form-label">MatchID:</label>
+                    <InputNumber id="matchid" @bind-Value="MatchOfficials.MatchID" class="form-control" />
+                    <ValidationMessage For="() => MatchOfficials.MatchID" class="text-danger" />
+                </div>
+                <!-- UserID Dropdown -->
+                <div class="mb-3">
+                    <label for="userid" class="form-label">UserID:</label>
+                    <select id="userid" @bind="MatchOfficials.UserID" class="form-control">
+                        <option value="">Select User</option>
+                        @foreach (var user in Users)
+                        {
+                            <option value="@user.Id">@user.LastName, @user.FirstName</option>
+                        }
+                    </select>
+                    <ValidationMessage For="() => MatchOfficials.UserID" class="text-danger" />
+                </div>
+                <!-- RoleID Dropdown -->
+                <div class="mb-3">
+                    <label for="roleid" class="form-label">RoleID:</label>
+                    <select id="roleid" @bind="MatchOfficials.RoleID" class="form-control">
+                        <option value="">Select Role</option>
+                        @foreach (var role in Roles)
+                        {
+                            <option value="@role.ID">@role.RoleName</option>
+                        }
+                    </select>
+                    <ValidationMessage For="() => MatchOfficials.RoleID" class="text-danger" />
+                </div>
+                <!-- Submit Button -->
+                <button type="submit" class="btn btn-primary">Save</button>
+            </EditForm>
+        </div>
+    </div>
+}
+
+<div>
+    <a href="/matchofficials">Back to List</a>
+</div>
+
+@code {
+    [SupplyParameterFromQuery]
+    private int ID { get; set; } // Match official ID from URL
+
+    [SupplyParameterFromForm]
+    private MatchOfficials? MatchOfficials { get; set; } 
+    private List<ApplicationUser> Users { get; set; } = new();
+    private List<OfficialRoles> Roles { get; set; } = new();
+
+
+    // Method to initialize the component and load match official details
+    protected override async Task OnInitializedAsync()
+    {
+        using var context = DbFactory.CreateDbContext();
+        // Get match official details
+        MatchOfficials ??= await context.MatchOfficials.FromSqlRaw("SELECT * FROM MatchOfficials WHERE ID = @p0", ID).FirstOrDefaultAsync();
+
+        if (MatchOfficials is null)
+        {
+            NavigationManager.NavigateTo("notfound");
+        }
+        string usersSql = @"
+            SELECT AspNetUsers.*
+            FROM AspNetUsers, AspNetUserRoles, AspNetRoles
+            WHERE AspNetUsers.Id = AspNetUserRoles.UserId
+            AND AspNetUserRoles.RoleId = AspNetRoles.Id
+            AND AspNetRoles.Name = 'Official'
+            ORDER BY AspNetUsers.LastName, AspNetUsers.FirstName";
+        Users = await context.Users.FromSqlRaw(usersSql).ToListAsync();
+
+        // Get role details
+        string rolesSql = "SELECT * FROM OfficialRoles";
+        Roles = await context.OfficialRoles.FromSqlRaw(rolesSql).ToListAsync();
+    }
+
+    // Method to update the match official details in the database using raw SQL
+    private async Task UpdateMatchOfficials()
+    {
+        using var context = DbFactory.CreateDbContext();
+        string sql = "UPDATE MatchOfficials SET MatchID = @p0, UserID = @p1, RoleID = @p2 WHERE ID = @p3";
+        await context.Database.ExecuteSqlRawAsync(sql, MatchOfficials!.MatchID, MatchOfficials.UserID, MatchOfficials.RoleID, MatchOfficials.ID);
+
+        NavigationManager.NavigateTo("/matchofficials"); // Redirect to the match officials list page after updating the match official
+    }
+}
+
+
+

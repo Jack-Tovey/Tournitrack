@@ -1,0 +1,79 @@
+﻿@page "/officialroles/edit"
+@rendermode InteractiveServer
+@using Microsoft.EntityFrameworkCore
+@using Tournitrack.Data.Models
+@inject IDbContextFactory<Tournitrack.Data.ApplicationDbContext> DbFactory
+@inject NavigationManager NavigationManager
+
+<PageTitle>Edit</PageTitle>
+
+<h1>Edit</h1>
+
+<h2>OfficialRoles</h2>
+<hr />
+@if (OfficialRoles is null)
+{
+    <p><em>Loading...</em></p>
+}
+else
+{
+    <div class="row">
+        <div class="col-md-4">
+            <!-- Form to edit the OfficialRoles record -->
+            <EditForm method="post" Model="OfficialRoles" OnValidSubmit="UpdateOfficialRoles" FormName="edit" Enhance>
+                <DataAnnotationsValidator />
+                <ValidationSummary role="alert" />
+                <input type="hidden" name="OfficialRoles.ID" value="@OfficialRoles.ID" />
+                <div class="mb-3">
+                    <!-- Input for the role name -->
+                    <label for="rolename" class="form-label">RoleName:</label>
+                    <InputText id="rolename" @bind-Value="OfficialRoles.RoleName" class="form-control" />
+                    <ValidationMessage For="() => OfficialRoles.RoleName" class="text-danger" />
+                </div>
+                <button type="submit" class="btn btn-primary">Save</button>
+            </EditForm>
+        </div>
+    </div>
+}
+
+<div>
+    <a href="/officialroles">Back to List</a>
+</div>
+
+@code {
+    // The ID of the OfficialRoles record to be edited, supplied from the URL
+    [SupplyParameterFromQuery]
+    private int ID { get; set; }
+
+    // The OfficialRoles record to be edited
+    [SupplyParameterFromForm]
+    private OfficialRoles? OfficialRoles { get; set; }
+
+    // Method to initialize the component and load the OfficialRoles record
+    protected override async Task OnInitializedAsync()
+    {
+        using var context = DbFactory.CreateDbContext();
+        // Fetch the OfficialRoles record using SQL query
+        OfficialRoles ??= await context.OfficialRoles.FromSqlRaw("SELECT * FROM OfficialRoles WHERE ID = @p0", ID).FirstOrDefaultAsync();
+
+        // If the record is not found, navigate to the "notfound" page
+        if (OfficialRoles is null)
+        {
+            NavigationManager.NavigateTo("notfound");
+        }
+    }
+
+    // Method to update the OfficialRoles record
+    private async Task UpdateOfficialRoles()
+    {
+        using var context = DbFactory.CreateDbContext();
+        // Update the OfficialRoles record using SQL query
+        string sql = "UPDATE OfficialRoles SET RoleName = @p0 WHERE ID = @p1";
+        await context.Database.ExecuteSqlRawAsync(sql, OfficialRoles!.RoleName, OfficialRoles.ID);
+
+        // Navigate back to the list of official roles
+        NavigationManager.NavigateTo("/officialroles");
+    }
+}
+
+

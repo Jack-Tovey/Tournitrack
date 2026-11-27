@@ -1,0 +1,80 @@
+﻿@page "/teamsheetplayers/create"
+@rendermode InteractiveServer
+@using Microsoft.EntityFrameworkCore
+@using Tournitrack.Data.Models
+@inject IDbContextFactory<Tournitrack.Data.ApplicationDbContext> DbFactory
+@inject NavigationManager NavigationManager
+
+<PageTitle>Create</PageTitle>
+
+<h1>Create</h1>
+
+<h2>TeamSheetPlayers</h2>
+<hr />
+<div class="row">
+    <div class="col-md-4">
+        <!-- Form for creating a new TeamSheetPlayers entry -->
+        <EditForm method="post" Model="TeamSheetPlayers" OnValidSubmit="AddTeamSheetPlayers" FormName="create" Enhance>
+            <DataAnnotationsValidator />
+            <ValidationSummary class="text-danger" role="alert" />
+            <div class="mb-3">
+                <label for="teamsheetid" class="form-label">TeamSheetID:</label>
+                <InputNumber id="teamsheetid" @bind-Value="TeamSheetPlayers.TeamSheetID" class="form-control" />
+                <ValidationMessage For="() => TeamSheetPlayers.TeamSheetID" class="text-danger" />
+            </div>
+            <div class="mb-3">
+                <label for="playerid" class="form-label">PlayerID:</label>
+                <!-- Dropdown for selecting a player, grouped by club -->
+                <select id="playerid" @bind="TeamSheetPlayers.PlayerID" class="form-control">
+                    <option value="">Select Player</option>
+                    @foreach (Clubs club in Clubs)
+                    {
+                        <optgroup label="@club.Name">
+                            @foreach (Players player in Players.Where(p => p.ClubID == club.ID))
+                            {
+                                <option value="@player.ID">@player.shirtNumber - @player.LastName, @player.FirstName</option>
+                            }
+                        </optgroup>
+                    }
+                </select>
+                <ValidationMessage For="() => TeamSheetPlayers.PlayerID" class="text-danger" />
+            </div>
+            <button type="submit" class="btn btn-primary">Create</button>
+        </EditForm>
+    </div>
+</div>
+
+<div>
+    <a href="/teamsheetplayers">Back to List</a>
+</div>
+
+@code {
+    [SupplyParameterFromForm]
+    private TeamSheetPlayers TeamSheetPlayers { get; set; } = new();
+    private List<Players> Players { get; set; } = new();
+    private List<Clubs> Clubs { get; set; } = new();
+
+    // Method to initialize the component and load player and club details
+    protected override async Task OnInitializedAsync()
+    {
+        using var context = DbFactory.CreateDbContext();
+        // SQL query to get player details
+        string playersSql = "SELECT * FROM Players";
+        Players = await context.Players.FromSqlRaw(playersSql).ToListAsync();
+
+        // SQL query to get club details
+        string clubsSql = "SELECT * FROM Clubs";
+        Clubs = await context.Clubs.FromSqlRaw(clubsSql).ToListAsync();
+    }
+
+    // Method to add a new TeamSheetPlayers entry to the database
+    private async Task AddTeamSheetPlayers()
+    {
+        using var context = DbFactory.CreateDbContext();
+        // SQL query to insert a new TeamSheetPlayers entry
+        string sql = "INSERT INTO TeamSheetPlayers (TeamSheetID, PlayerID) VALUES (@p0, @p1)";
+        await context.Database.ExecuteSqlRawAsync(sql, TeamSheetPlayers.TeamSheetID, TeamSheetPlayers.PlayerID);
+        // Navigate back to the list page after creating the entry
+        NavigationManager.NavigateTo("/teamsheetplayers");
+    }
+}

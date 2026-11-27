@@ -1,0 +1,115 @@
+﻿@page "/players/edit"
+@rendermode InteractiveServer
+@using Microsoft.EntityFrameworkCore
+@using Tournitrack.Data.Models
+@inject IDbContextFactory<Tournitrack.Data.ApplicationDbContext> DbFactory
+@inject NavigationManager NavigationManager
+
+<PageTitle>Edit</PageTitle>
+
+<h1>Edit</h1>
+
+<h2>Players</h2>
+<hr />
+@if (Players is null)
+{
+    <p><em>Loading...</em></p>
+}
+else
+{
+    <div class="row">
+        <div class="col-md-4">
+            <!-- Form to edit the Players record -->
+            <EditForm method="post" Model="Players" OnValidSubmit="UpdatePlayers" FormName="edit" Enhance>
+                <DataAnnotationsValidator />
+                <ValidationSummary />
+                <input type="hidden" name="Players.ID" value="@Players.ID" />
+                <div class="mb-3">
+                    <!-- Input for the first name -->
+                    <label for="firstname" class="form-label">FirstName:</label>
+                    <InputText id="firstname" @bind-Value="Players.FirstName" class="form-control" />
+                    <ValidationMessage For="() => Players.FirstName" class="text-danger" />
+                </div>
+                <div class="mb-3">
+                    <!-- Input for the last name -->
+                    <label for="lastname" class="form-label">LastName:</label>
+                    <InputText id="lastname" @bind-Value="Players.LastName" class="form-control" />
+                    <ValidationMessage For="() => Players.LastName" class="text-danger" />
+                </div>
+                <div class="mb-3">
+                    <!-- Input for the date of birth -->
+                    <label for="dob" class="form-label">dob:</label>
+                    <InputDate id="dob" @bind-Value="Players.dob" class="form-control" />
+                    <ValidationMessage For="() => Players.dob" class="text-danger" />
+                </div>
+                <div class="mb-3">
+                    <!-- Input for the shirt number -->
+                    <label for="shirtnumber" class="form-label">shirtNumber:</label>
+                    <InputNumber id="shirtnumber" @bind-Value="Players.shirtNumber" class="form-control" />
+                    <ValidationMessage For="() => Players.shirtNumber" class="text-danger" />
+                </div>
+                <div class="mb-3">
+                    <!-- Dropdown for selecting the club -->
+                    <label for="teamid" class="form-label">ClubID:</label>
+                    <InputSelect id="teamid" @bind-Value="Players.ClubID" class="form-control">
+                        <option value="">Select a club</option>
+                        @foreach (Clubs club in clubs)
+                        {
+                            <option value="@club.ID">@club.Name</option>
+                        }
+                    </InputSelect>
+                    <ValidationMessage For="() => Players.ClubID" class="text-danger" />
+                </div>
+                <!-- Button to Save Players records-->
+                <button type="submit" class="btn btn-primary">Save</button>
+            </EditForm>
+        </div>
+    </div>
+}
+
+<div>
+    <a href="/players">Back to List</a>
+</div>
+
+@code {
+    // The ID of the Players record to be edited, supplied from the URL
+    [SupplyParameterFromQuery]
+    private int ID { get; set; }
+
+    // The Players record to be edited
+    [SupplyParameterFromForm]
+    private Players? Players { get; set; }
+
+    // List to hold the clubs
+    private List<Clubs> clubs = new();
+
+    // Method to initialize the component and load the Players record and list of clubs
+    protected override async Task OnInitializedAsync()
+    {
+        using var context = DbFactory.CreateDbContext();
+        // Fetch the Players record using SQL query
+        Players = await context.Players.FromSqlRaw("SELECT * FROM Players WHERE ID = @p0", ID).FirstOrDefaultAsync();
+
+        // If the record is not found, navigate to the "notfound" page
+        if (Players is null)
+        {
+            NavigationManager.NavigateTo("notfound");
+        }
+
+        // Fetch the list of clubs using SQL query
+        string sql = "SELECT * FROM Clubs";
+        clubs = await context.Clubs.FromSqlRaw(sql).ToListAsync();
+    }
+
+    // Method to update the Players record
+    private async Task UpdatePlayers()
+    {
+        using var context = DbFactory.CreateDbContext();
+        // Update the Players record using SQL query
+        string sql = "UPDATE Players SET FirstName = @p0, LastName = @p1, dob = @p2, shirtNumber = @p3, ClubID = @p4 WHERE ID = @p5";
+        await context.Database.ExecuteSqlRawAsync(sql, Players!.FirstName, Players.LastName, Players.dob, Players.shirtNumber, Players.ClubID, Players.ID);
+
+        // Navigate back to the list of players
+        NavigationManager.NavigateTo("/players");
+    }
+}

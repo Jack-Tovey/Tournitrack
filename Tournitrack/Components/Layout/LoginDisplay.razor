@@ -2,6 +2,8 @@
     <Authorized>
         <a href="Account/Manage">Hello, @context.User.Identity?.Name!</a>
         <form method="post" action="Account/LogOut">
+            <AntiforgeryToken />
+            <input type="hidden" name="returnUrl" value="" />
             <button type="submit" class="nav-link btn btn-link">Log out</button>
         </form>
     </Authorized>

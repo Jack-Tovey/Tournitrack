@@ -1,0 +1,47 @@
+﻿@page "/players"
+@using Microsoft.EntityFrameworkCore
+@using Microsoft.AspNetCore.Components.QuickGrid
+@using Tournitrack.Data.Models
+@using Tournitrack.Data
+@inject IDbContextFactory<Tournitrack.Data.ApplicationDbContext> DbFactory
+
+<PageTitle>Index</PageTitle>
+
+<h1>Index</h1>
+
+<p>
+    <a href="players/create">Create New</a>
+</p>
+
+<!-- QuickGrid to display the list of players -->
+<QuickGrid Class="table" Items="playersList.AsQueryable()">
+    <PropertyColumn Property="players => players.FirstName" />
+    <PropertyColumn Property="players => players.LastName" />
+    <PropertyColumn Property="players => players.dob" />
+    <PropertyColumn Property="players => players.shirtNumber" />
+    <PropertyColumn Property="players => players.ClubID" />
+
+    <TemplateColumn Context="players">
+        <a href="@($"players/edit?id={players.ID}")">Edit</a> |
+        <a href="@($"players/details?id={players.ID}")">Details</a> |
+        <a href="@($"players/delete?id={players.ID}")">Delete</a>
+    </TemplateColumn>
+</QuickGrid>
+
+@code {
+    // List to hold the players data
+    private List<Players> playersList = new();
+
+    // Method to initialize the component and load players details
+    protected override async Task OnInitializedAsync()
+    {
+        using var context = DbFactory.CreateDbContext();
+        // Get players details using raw SQL
+        string sql = "SELECT * FROM Players";
+        playersList = await context.Players.FromSqlRaw(sql).ToListAsync();
+    }
+}
+
+
+
+

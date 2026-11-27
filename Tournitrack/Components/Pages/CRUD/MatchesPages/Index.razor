@@ -1,0 +1,54 @@
+﻿@page "/matches"
+@using Microsoft.EntityFrameworkCore
+@using Microsoft.AspNetCore.Components.QuickGrid
+@using Tournitrack.Data.Models
+@using Tournitrack.Data
+@implements IAsyncDisposable
+@inject IDbContextFactory<Tournitrack.Data.ApplicationDbContext> DbFactory
+
+<PageTitle>Index</PageTitle>
+
+<h1>Index</h1>
+
+<p>
+    <a href="matches/create">Create New</a>
+</p>
+
+<!-- QuickGrid to display the list of matches -->
+<QuickGrid Class="table" Items="matchesList.AsQueryable()">
+    <PropertyColumn Property="matches => matches.TournamentID" />
+    <PropertyColumn Property="matches => matches.ScheduledMatchDateTime" />
+    <PropertyColumn Property="matches => matches.TeamIDHome" Title="Home Team" />
+    <PropertyColumn Property="matches => matches.TeamIDAway" Title="Away Team" />
+    <PropertyColumn Property="matches => matches.PitchNumber" />
+    <PropertyColumn Property="matches => matches.PoolID" />
+    <PropertyColumn Property="matches => matches.Description" />
+    <PropertyColumn Property="matches => matches.MatchComplete" />
+    <PropertyColumn Property="matches => matches.ResultNeeded" />
+
+    <!-- Template column for actions (Edit, Details, Delete) -->
+    <TemplateColumn Context="matches">
+        <a href="@($"matches/edit?id={matches.ID}")">Edit</a> |
+        <a href="@($"matches/details?id={matches.ID}")">Details</a> |
+        <a href="@($"matches/delete?id={matches.ID}")">Delete</a>
+    </TemplateColumn>
+</QuickGrid>
+
+@code {
+    private List<Matches> matchesList = new();
+
+    // Method to initialize the component and load match details
+    protected override async Task OnInitializedAsync()
+    {
+        using var context = DbFactory.CreateDbContext();
+        // Get match details
+        string SQL = "SELECT * FROM Matches";
+        matchesList = await context.Matches.FromSqlRaw(SQL).ToListAsync();
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        await DbFactory.CreateDbContext().DisposeAsync();
+    }
+}
+

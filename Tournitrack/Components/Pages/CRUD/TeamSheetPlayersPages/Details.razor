@@ -1,0 +1,57 @@
+﻿@page "/teamsheetplayers/details"
+@using Microsoft.EntityFrameworkCore
+@using Tournitrack.Data.Models
+@inject IDbContextFactory<Tournitrack.Data.ApplicationDbContext> DbFactory
+@inject NavigationManager NavigationManager
+
+<PageTitle>Details</PageTitle>
+
+<h1>Details</h1>
+
+<div>
+    <h2>TeamSheetPlayers</h2>
+    <hr />
+    @if (teamsheetplayers is null)
+    {
+        <p><em>Loading...</em></p>
+    }
+    else {
+        
+        <dl class="row">
+            <dt class="col-sm-2">TeamSheetID</dt>
+            <dd class="col-sm-10">@teamsheetplayers.TeamSheetID</dd>
+            <dt class="col-sm-2">PlayerID</dt>
+            <dd class="col-sm-10">@teamsheetplayers.PlayerID - @player?.shirtNumber - @player?.LastName, @player?.FirstName</dd>
+        </dl>
+        <div>
+            <a href="@($"/teamsheetplayers/edit?id={teamsheetplayers.ID}")">Edit</a> |
+            <a href="@($"/teamsheetplayers")">Back to List</a>
+        </div>
+    }
+</div>
+
+@code {
+    private TeamSheetPlayers? teamsheetplayers;
+    private Players? player;
+
+    [SupplyParameterFromQuery]
+    private int ID { get; set; }
+
+    // Method to initialize the component and load the TeamSheetPlayers entry details
+    protected override async Task OnInitializedAsync()
+    {
+        using var context = DbFactory.CreateDbContext();
+        // SQL query to get the TeamSheetPlayers entry by ID
+        teamsheetplayers = await context.TeamSheetPlayers.FromSqlRaw("SELECT * FROM TeamSheetPlayers WHERE ID = @p0", ID).FirstOrDefaultAsync();
+
+        if (teamsheetplayers is null)
+        {
+            NavigationManager.NavigateTo("notfound");
+        }
+        else
+        {
+            // SQL query to get the player details by PlayerID
+            player = await context.Players.FromSqlRaw("SELECT * FROM Players WHERE ID = @p0", teamsheetplayers.PlayerID).FirstOrDefaultAsync();
+        }
+    }
+}

@@ -1,0 +1,39 @@
+@page "/crudmenu"
+@rendermode InteractiveServer
+
+<h3>CRUD Menu</h3>
+<div>
+    <button class="btn btn-primary" @onclick="NavigateToClubs">Clubs CRUD</button> <br /> <br/>
+    <button class="btn btn-primary" @onclick="NavigateToMatches">Matches CRUD</button> <br /> <br/>
+    <button class="btn btn-primary" @onclick="NavigateToMatchOfficials">Match Officials CRUD</button> <br /> <br/>
+    <button class="btn btn-primary" @onclick="NavigateToOfficialAvailability">Official Availability CRUD</button> <br /> <br/>
+    <button class="btn btn-primary" @onclick="NavigateToOfficialRole">Official Role CRUD</button> <br /> <br/>
+    <button class="btn btn-primary" @onclick="NavigateToPlayerCards">Player Cards CRUD</button> <br /> <br />
+    <button class="btn btn-primary" @onclick="NavigateToPlayerGoals">Player Goals CRUD</button> <br /> <br />
+    <button class="btn btn-primary" @onclick="NavigateToPlayers">Players CRUD</button> <br /> <br/>
+    <button class="btn btn-primary" @onclick="NavigateToPools">Pools CRUD</button> <br /> <br/>
+    <button class="btn btn-primary" @onclick="NavigateToPoolsTeams">Pools Teams CRUD</button> <br /> <br/>
+    <button class="btn btn-primary" @onclick="NavigateToTeamSheetPlayers">Team Sheet Players CRUD</button> <br /> <br/>
+    <button class="btn btn-primary" @onclick="NavigateToTournamentOfficials">Tournament Officials CRUD</button> <br /> <br/>
+    <button class="btn btn-primary" @onclick="NavigateToTournaments">Tournaments CRUD</button> <br /> <br/>
+    <button class="btn btn-primary" @onclick="NavigateToTournamentTeams">Tournament Teams CRUD</button> <br /> <br/>
+</div>
+
+@code {
+    [Inject] private NavigationManager NavigationManager { get; set; }
+
+    private void NavigateToClubs() => NavigationManager.NavigateTo("/ClubTeamManager");
+    private void NavigateToMatches() => NavigationManager.NavigateTo("/matches");
+    private void NavigateToMatchOfficials() => NavigationManager.NavigateTo("/matchofficials");
+    private void NavigateToOfficialAvailability() => NavigationManager.NavigateTo("/officialavailabilities");
+    private void NavigateToOfficialRole() => NavigationManager.NavigateTo("/officialroles");
+    private void NavigateToPlayerCards() => NavigationManager.NavigateTo("/playercards");
+    private void NavigateToPlayerGoals() => NavigationManager.NavigateTo("/playergoals");
+    private void NavigateToPlayers() => NavigationManager.NavigateTo("/players");
+    private void NavigateToPools() => NavigationManager.NavigateTo("/pools");
+    private void NavigateToPoolsTeams() => NavigationManager.NavigateTo("/poolsteams");
+    private void NavigateToTeamSheetPlayers() => NavigationManager.NavigateTo("/teamsheetplayers");
+    private void NavigateToTournamentOfficials() => NavigationManager.NavigateTo("/tournamentofficials");
+    private void NavigateToTournaments() => NavigationManager.NavigateTo("/tournaments");
+    private void NavigateToTournamentTeams() => NavigationManager.NavigateTo("/tournamentteams");
+}

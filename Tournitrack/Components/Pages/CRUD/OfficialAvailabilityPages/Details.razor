@@ -1,0 +1,74 @@
+﻿@page "/officialavailabilities/details"
+@using Microsoft.EntityFrameworkCore
+@using Tournitrack.Data.Models
+@using Tournitrack.Data
+@inject IDbContextFactory<Tournitrack.Data.ApplicationDbContext> DbFactory
+@inject NavigationManager NavigationManager
+
+<PageTitle>Details</PageTitle>
+
+<h1>Details</h1>
+
+<div>
+    <h2>OfficialAvailability</h2>
+    <hr />
+    @if (officialavailability is null)
+    {
+        <p><em>Loading...</em></p>
+    }
+    else
+    {
+        <!-- Display the details of the OfficialAvailability record -->
+        <dl class="row">
+            <dt class="col-sm-2">UserID</dt>
+            <dd class="col-sm-10">
+                @officialavailability.UserID
+                <br />
+                <!-- Subtext to display the official's name -->
+                <small class="text-muted">@officialUsername</small>
+            </dd>
+            <dt class="col-sm-2">Date</dt>
+            <dd class="col-sm-10">@officialavailability.Date</dd>
+            <dt class="col-sm-2">Morning</dt>
+            <dd class="col-sm-10">@officialavailability.Morning</dd>
+            <dt class="col-sm-2">Afternoon</dt>
+            <dd class="col-sm-10">@officialavailability.Afternoon</dd>
+            <dt class="col-sm-2">Evening</dt>
+            <dd class="col-sm-10">@officialavailability.Evening</dd>
+        </dl>
+        <div>
+            <a href="@($"/officialavailabilities/edit?id={officialavailability.ID}")">Edit</a> |
+            <a href="@($"/officialavailabilities")">Back to List</a>
+        </div>
+    }
+</div>
+
+@code {
+    private OfficialAvailability? officialavailability;
+    private string officialUsername = string.Empty;
+
+    // The ID of the OfficialAvailability record to be viewed, supplied from the URL
+    [SupplyParameterFromQuery]
+    private int ID { get; set; }
+
+    // Method to initialize the component and load the OfficialAvailability record
+    protected override async Task OnInitializedAsync()
+    {
+        using var context = DbFactory.CreateDbContext();
+        // Fetch the OfficialAvailability record using SQL query
+        officialavailability = await context.OfficialAvailability.FromSqlRaw("SELECT * FROM OfficialAvailability WHERE ID = @p0", ID).FirstOrDefaultAsync();
+
+        // If the record is found, fetch the official's username
+        if (officialavailability != null)
+        {
+            ApplicationUser user = await context.Users.FromSqlRaw("SELECT * FROM AspNetUsers WHERE Id = @p0", officialavailability.UserID).FirstOrDefaultAsync();
+            officialUsername = user?.UserName ?? "Unknown";
+        }
+        else
+        {
+            // If the record is not found, navigate to the "notfound" page
+            NavigationManager.NavigateTo("notfound");
+        }
+    }
+}
+

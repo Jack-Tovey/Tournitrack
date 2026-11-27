@@ -1,0 +1,58 @@
+﻿@page "/pools/details"
+@using Microsoft.EntityFrameworkCore
+@using Tournitrack.Data.Models
+@inject IDbContextFactory<Tournitrack.Data.ApplicationDbContext> DbFactory
+@inject NavigationManager NavigationManager
+
+<PageTitle>Details</PageTitle>
+
+<h1>Details</h1>
+
+<div>
+    <h2>Pools</h2>
+    <hr />
+    @if (pools is null)
+    {
+        <p><em>Loading...</em></p>
+    }
+    else
+    {
+        <!-- Display the details of the Pools record -->
+        <dl class="row">
+            <dt class="col-sm-2">TournamentID</dt>
+            <dd class="col-sm-10">@pools.TournamentID</dd>
+            <dt class="col-sm-2">PoolNumber</dt>
+            <dd class="col-sm-10">@pools.PoolNumber</dd>
+            <dt class="col-sm-2">PhaseNumber</dt>
+            <dd class="col-sm-10">@pools.PhaseNumber</dd>
+        </dl>
+        <div>
+            <!-- Links to edit the record or go back to the list -->
+            <a href="@($"/pools/edit?id={pools.ID}")">Edit</a> |
+            <a href="@($"/pools")">Back to List</a>
+        </div>
+    }
+</div>
+
+@code {
+    // The Pools record to be displayed
+    private Pools? pools;
+
+    // The ID of the Pools record to be displayed, supplied from the URL
+    [SupplyParameterFromQuery]
+    private int ID { get; set; }
+
+    // Method to initialize the component and load the Pools record
+    protected override async Task OnInitializedAsync()
+    {
+        using var context = DbFactory.CreateDbContext();
+        // Fetch the Pools record using SQL query
+        pools = await context.Pools.FromSqlRaw("SELECT * FROM Pools WHERE ID = @p0", ID).FirstOrDefaultAsync();
+
+        // If the record is not found, navigate to the "notfound" page
+        if (pools is null)
+        {
+            NavigationManager.NavigateTo("notfound");
+        }
+    }
+}

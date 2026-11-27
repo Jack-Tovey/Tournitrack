@@ -1,0 +1,54 @@
+﻿@page "/officialroles/details"
+@using Microsoft.EntityFrameworkCore
+@using Tournitrack.Data.Models
+@inject IDbContextFactory<Tournitrack.Data.ApplicationDbContext> DbFactory
+@inject NavigationManager NavigationManager
+
+<PageTitle>Details</PageTitle>
+
+<h1>Details</h1>
+
+<div>
+    <h2>OfficialRoles</h2>
+    <hr />
+    @if (officialroles is null)
+    {
+        <p><em>Loading...</em></p>
+    }
+    else
+    {
+        <!-- Display the details of the OfficialRoles record -->
+        <dl class="row">
+            <dt class="col-sm-2">RoleName</dt>
+            <dd class="col-sm-10">@officialroles.RoleName</dd>
+        </dl>
+        <div>
+            <!-- Links to edit the record or go back to the list -->
+            <a href="@($"/officialroles/edit?id={officialroles.ID}")">Edit</a> |
+            <a href="@($"/officialroles")">Back to List</a>
+        </div>
+    }
+</div>
+
+@code {
+    // The OfficialRoles record to be displayed
+    private OfficialRoles? officialroles;
+
+    // The ID of the OfficialRoles record to be displayed, supplied from the URL
+    [SupplyParameterFromQuery]
+    private int ID { get; set; }
+
+    // Method to initialize the component and load the OfficialRoles record
+    protected override async Task OnInitializedAsync()
+    {
+        using var context = DbFactory.CreateDbContext();
+        // Fetch the OfficialRoles record using SQL query
+        officialroles = await context.OfficialRoles.FromSqlRaw("SELECT * FROM OfficialRoles WHERE ID = @p0", ID).FirstOrDefaultAsync();
+
+        // If the record is not found, navigate to the "notfound" page
+        if (officialroles is null)
+        {
+            NavigationManager.NavigateTo("notfound");
+        }
+    }
+}

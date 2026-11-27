@@ -1,0 +1,77 @@
+﻿@page "/matchofficials/delete"
+@rendermode InteractiveServer
+@using Microsoft.EntityFrameworkCore
+@using Tournitrack.Data.Models
+@inject IDbContextFactory<Tournitrack.Data.ApplicationDbContext> DbFactory
+@inject NavigationManager NavigationManager
+
+<PageTitle>Delete</PageTitle>
+
+<h1>Delete</h1>
+
+<p>Are you sure you want to delete this?</p>
+<div>
+    <h2>MatchOfficials</h2>
+    <hr />
+    @if (matchofficials is null)
+    {
+        <p><em>Loading...</em></p>
+    }
+    else
+    {
+        <!-- Display match official details -->
+        <dl class="row">
+            <dt class="col-sm-2">MatchID</dt>
+            <dd class="col-sm-10">@matchofficials.MatchID</dd>
+            <dt class="col-sm-2">UserID</dt>
+            <dd class="col-sm-10">@matchofficials.UserID - @userName</dd>
+            <dt class="col-sm-2">RoleID</dt>
+            <dd class="col-sm-10">@matchofficials.RoleID - @roleName</dd>
+        </dl>
+        <!-- Form to delete the match official -->
+        <EditForm method="post" Model="matchofficials" OnValidSubmit="DeleteMatchOfficials" FormName="delete" Enhance>
+            <button type="submit" class="btn btn-danger" disabled="@(matchofficials is null)">Delete</button> |
+            <a href="/matchofficials">Back to List</a>
+        </EditForm>
+    }
+</div>
+
+@code {
+    private MatchOfficials? matchofficials;
+    private string userName = string.Empty;
+    private string roleName = string.Empty; 
+
+    [SupplyParameterFromQuery]
+    private int ID { get; set; } // Match official ID from URL
+
+    // Method to initialize the component and load match official details
+    protected override async Task OnInitializedAsync()
+    {
+        using var context = DbFactory.CreateDbContext();
+        // Get match official details
+        matchofficials = await context.MatchOfficials.FromSqlRaw("SELECT * FROM MatchOfficials WHERE ID = @p0", ID).FirstOrDefaultAsync();
+
+        if (matchofficials is null)
+        {
+            NavigationManager.NavigateTo("notfound");
+            return;
+        }
+
+        // Get user name
+        userName = await context.Users.FromSqlRaw("SELECT UserName FROM AspNetUsers WHERE Id = @p0", matchofficials.UserID).Select(u => u.UserName).FirstOrDefaultAsync() ?? "Unknown";
+
+        // Get role name
+        roleName = await context.OfficialRoles.FromSqlRaw("SELECT RoleName FROM OfficialRoles WHERE ID = @p0", matchofficials.RoleID).Select(r => r.RoleName).FirstOrDefaultAsync() ?? "Unknown";
+    }
+
+    // Method to delete the match official from the database using raw SQL
+    private async Task DeleteMatchOfficials()
+    {
+        using var context = DbFactory.CreateDbContext();
+        await context.Database.ExecuteSqlRawAsync("DELETE FROM MatchOfficials WHERE ID = @p0", matchofficials!.ID);
+        NavigationManager.NavigateTo("/matchofficials"); // Redirect to the match officials list page after deleting the match official
+    }
+}
+
+
+

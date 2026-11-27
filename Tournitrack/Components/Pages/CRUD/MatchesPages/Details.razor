@@ -1,0 +1,86 @@
+﻿@page "/matches/details"
+@using Microsoft.EntityFrameworkCore
+@using Tournitrack.Data.Models
+@inject IDbContextFactory<Tournitrack.Data.ApplicationDbContext> DbFactory
+@inject NavigationManager NavigationManager
+
+<PageTitle>Details</PageTitle>
+
+<h1>Details</h1>
+
+<div>
+    <h2>Matches</h2>
+    <hr />
+    @if (matches is null)
+    {
+        <p><em>Loading...</em></p>
+    }
+    else
+    {
+        <!-- Display match details -->
+        <dl class="row">
+            <dt class="col-sm-2">TournamentID</dt>
+            <dd class="col-sm-10">@matches.TournamentID</dd>
+            <dt class="col-sm-2">ScheduledMatchDateTime</dt>
+            <dd class="col-sm-10">@matches.ScheduledMatchDateTime</dd>
+            <dt class="col-sm-2">ActualMatchDateTime</dt>
+            <dd class="col-sm-10">@matches.ActualMatchDateTime</dd>
+            <!-- Display home team ID and name -->
+            <dt class="col-sm-2">TeamIDHome</dt>
+            <dd class="col-sm-10">@matches.TeamIDHome - @homeTeamName</dd>
+            <dt class="col-sm-2">HomeTeamSheetID</dt>
+            <dd class="col-sm-10">@matches.HomeTeamSheetID</dd>
+            <!-- Display away team ID and name -->
+            <dt class="col-sm-2">TeamIDAway</dt>
+            <dd class="col-sm-10">@matches.TeamIDAway - @awayTeamName</dd>
+            <dt class="col-sm-2">AwayTeamSheetID</dt>
+            <dd class="col-sm-10">@matches.AwayTeamSheetID</dd>
+            <dt class="col-sm-2">PitchNumber</dt>
+            <dd class="col-sm-10">@matches.PitchNumber</dd>
+            <dt class="col-sm-2">PoolID</dt>
+            <dd class="col-sm-10">@matches.PoolID</dd>
+            <dt class="col-sm-2">Description</dt>
+            <dd class="col-sm-10">@matches.Description</dd>
+            <dt class="col-sm-2">GameLength</dt>
+            <dd class="col-sm-10">@matches.GameLength</dd>
+            <dt class="col-sm-2">MatchComplete</dt>
+            <dd class="col-sm-10">@matches.MatchComplete</dd>
+            <dt class="col-sm-2">ResultNeeded</dt>
+            <dd class="col-sm-10">@matches.ResultNeeded</dd>
+        </dl>
+        <!-- Links to edit the match or go back to the list -->
+        <div>
+            <a href="@($"/matches/edit?id={matches.ID}")">Edit</a> |
+            <a href="@($"/matches")">Back to List</a>
+        </div>
+    }
+</div>
+
+@code {
+    private Matches? matches;
+    private string homeTeamName = string.Empty; 
+    private string awayTeamName = string.Empty; 
+
+    [SupplyParameterFromQuery]
+    private int ID { get; set; } // Match ID from URL
+
+    protected override async Task OnInitializedAsync()
+    {
+        using var context = DbFactory.CreateDbContext();
+        // Get match details
+        string SQL = "SELECT * FROM Matches WHERE ID = @p0";
+        matches = await context.Matches.FromSqlRaw(SQL, ID).FirstOrDefaultAsync();
+
+        if (matches is null)
+        {
+            NavigationManager.NavigateTo("notfound");
+            return;
+        }
+
+        // Get home team name
+        SQL = "SELECT TeamName FROM Teams WHERE ID = @p0";
+        homeTeamName = await context.Teams.FromSqlRaw(SQL, matches.TeamIDHome).Select(t => t.TeamName).FirstOrDefaultAsync() ?? "Unknown";
+        // Get away team name
+        awayTeamName = await context.Teams.FromSqlRaw(SQL, matches.TeamIDAway).Select(t => t.TeamName).FirstOrDefaultAsync() ?? "Unknown";
+    }
+}

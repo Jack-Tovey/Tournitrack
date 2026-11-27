@@ -1,0 +1,67 @@
+﻿@page "/pools/create"
+@rendermode InteractiveServer
+@using Microsoft.EntityFrameworkCore
+@using Tournitrack.Data.Models
+@inject IDbContextFactory<Tournitrack.Data.ApplicationDbContext> DbFactory
+@inject NavigationManager NavigationManager
+
+<PageTitle>Create</PageTitle>
+
+<h1>Create</h1>
+
+<h2>Pools</h2>
+<hr />
+<div class="row">
+    <div class="col-md-4">
+        <!-- Form to create a new Pools record -->
+        <EditForm method="post" Model="Pools" OnValidSubmit="AddPools" FormName="create" Enhance>
+            <DataAnnotationsValidator />
+            <ValidationSummary class="text-danger" role="alert" />
+            <div class="mb-3">
+                <!-- Input for the tournament ID -->
+                <label for="tournamentid" class="form-label">TournamentID:</label>
+                <InputNumber id="tournamentid" @bind-Value="Pools.TournamentID" class="form-control" />
+                <ValidationMessage For="() => Pools.TournamentID" class="text-danger" />
+            </div>
+            <div class="mb-3">
+                <!-- Input for the pool number -->
+                <label for="poolnumber" class="form-label">PoolNumber:</label>
+                <InputNumber id="poolnumber" @bind-Value="Pools.PoolNumber" class="form-control" />
+                <ValidationMessage For="() => Pools.PoolNumber" class="text-danger" />
+            </div>
+            <div class="mb-3">
+                <!-- Input for the phase number -->
+                <label for="phasenumber" class="form-label">PhaseNumber:</label>
+                <InputNumber id="phasenumber" @bind-Value="Pools.PhaseNumber" class="form-control" />
+                <ValidationMessage For="() => Pools.PhaseNumber" class="text-danger" />
+            </div>
+            <!-- Button to insert Pool record -->
+            <button type="submit" class="btn btn-primary">Create</button>
+        </EditForm>
+    </div>
+</div>
+
+<div>
+    <a href="/pools">Back to List</a>
+</div>
+
+@code {
+    // Model to hold the Pools data
+    [SupplyParameterFromForm]
+    private Pools Pools { get; set; } = new();
+
+    // Method to add a new Pools record
+    private async Task AddPools()
+    {
+        using var context = DbFactory.CreateDbContext();
+        // Insert the new Pools record using raw SQL
+        string sql = "INSERT INTO Pools (TournamentID, PoolNumber, PhaseNumber) VALUES (@p0, @p1, @p2)";
+        await context.Database.ExecuteSqlRawAsync(sql, Pools.TournamentID, Pools.PoolNumber, Pools.PhaseNumber);
+        // Navigate back to the list of pools
+        NavigationManager.NavigateTo("/pools");
+    }
+}
+
+
+
+

@@ -1,0 +1,321 @@
+﻿@page "/Officials/Availability"
+@rendermode InteractiveServer
+@using System.Security.Claims
+@using Microsoft.AspNetCore.Identity
+@using Microsoft.EntityFrameworkCore
+@using Tournitrack.Data
+@using Tournitrack.Data.Models
+@inject UserManager<ApplicationUser> UserManager
+@inject NavigationManager NavigationManager
+@inject IDbContextFactory<ApplicationDbContext> DbFactory
+@inject AuthenticationStateProvider AuthenticationStateProvider
+
+<h3>Manage Availability</h3>
+
+<div>
+    <button class="btn btn-primary" @onclick="PreviousMonth">Previous</button>
+    <span>@currentMonth.ToString("MMMM yyyy")</span>
+    <button class="btn btn-primary" @onclick="NextMonth">Next</button>
+</div>
+
+<table class="table table-bordered">
+    <thead>
+        <tr>
+            <th>Sun</th>
+            <th>Mon</th>
+            <th>Tue</th>
+            <th>Wed</th>
+            <th>Thu</th>
+            <th>Fri</th>
+            <th>Sat</th>
+        </tr>
+    </thead>
+    <tbody>
+        @foreach (var week in calendar)
+        {
+            <tr>
+                @foreach (var day in week)
+                {
+                    <td class="calendar-cell" @onclick="() => SelectDay(day)">
+                        @if (day != DateTime.MinValue)
+                        {
+                            <div>
+                                <div>@day.Day</div>
+                                <div>
+                                    @if (availability.TryGetValue(day, out var avail))
+                                    {
+                                        <div class="availability">
+                                            @if (avail.Morning)
+                                            {
+                                                <span>Morning,</span>
+                                                <br/>
+                                            }
+                                            @if (avail.Afternoon)
+                                            {
+                                                <span>Afternoon,</span>
+                                                <br />
+                                            }
+                                            @if (avail.Evening)
+                                            {
+                                                <span>Evening</span>
+                                            }
+                                        </div>
+                                    }
+                                    @if (tournaments.TryGetValue(day, out var tournamentList))
+                                    {
+                                        @if (tournamentList.Count == 1)
+                                        {
+                                            <div class="tournament">@tournamentList[0].TournamentName</div>
+                                        }
+                                        else if (tournamentList.Count >= 2)
+                                        {
+                                            <div class="tooltip">
+                                                <div class="tournament">Multiple Tournaments</div>
+                                                <div class="tooltiptext">
+                                                    @foreach (var tournament in tournamentList)
+                                                    {
+                                                        <div>@tournament.TournamentName</div>
+                                                    }
+                                                </div>
+                                            </div>
+                                        }
+                                    }
+                                </div>
+                            </div>
+                        }
+                    </td>
+                }
+            </tr>
+        }
+    </tbody>
+</table>
+
+@if (selectedDay != DateTime.MinValue)
+{
+    <div class="modal show" tabindex="-1" style="display: block;">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Set Availability for @selectedDay.ToString("D")</h5>
+                    <button type="button" class="btn-close" @onclick="CloseModal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="morning" @bind="availabilityModel.Morning">
+                        <label class="form-check-label" for="morning">Morning</label>
+                    </div>
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="afternoon" @bind="availabilityModel.Afternoon">
+                        <label class="form-check-label" for="afternoon">Afternoon</label>
+                    </div>
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="evening" @bind="availabilityModel.Evening">
+                        <label class="form-check-label" for="evening">Evening</label>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" @onclick="CloseModal">Close</button>
+                    <button type="button" class="btn btn-primary" @onclick="SaveAvailability">Save changes</button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+<style>
+    .calendar-cell {
+    width: 100px;
+    height: 100px;
+    vertical-align: top;
+    position: relative;
+    padding: 5px;
+    }
+
+    .calendar-cell div {
+    position: relative;
+    overflow: hidden;
+    }
+
+    .availability {
+    background-color: lightblue;
+    padding: 2px;
+    border-radius: 5px;
+    margin-bottom: 2px;
+    }
+
+    .tournament {
+    background-color: lightgreen;
+    padding: 2px;
+    border-radius: 5px;
+    margin-bottom: 2px;
+    }
+
+    .tooltip {
+    position: relative;
+    display: inline-block;
+    }
+
+    .tooltip .tooltiptext {
+    visibility: hidden;
+    width: 120px;
+    background-color: black;
+    color: #fff;
+    text-align: center;
+    border-radius: 5px;
+    padding: 5px;
+    position: absolute;
+    z-index: 1;
+    bottom: 125%; /* Position the tooltip above the text */
+    left: 50%;
+    margin-left: -60px;
+    opacity: 0;
+    transition: opacity 0.3s;
+    }
+
+    .tooltip:hover .tooltiptext {
+    visibility: visible;
+    opacity: 1;
+    }
+</style>
+
+@code {
+    private DateTime currentMonth = DateTime.Now;
+    private DateTime selectedDay = DateTime.MinValue;
+    private OfficialAvailability availabilityModel = new OfficialAvailability();
+    private Dictionary<DateTime, OfficialAvailability> availability = new Dictionary<DateTime, OfficialAvailability>();
+    private Dictionary<DateTime, List<Tournaments>> tournaments = new Dictionary<DateTime, List<Tournaments>>();
+    private List<List<DateTime>> calendar = new List<List<DateTime>>();
+
+    protected override async Task OnInitializedAsync()
+    {
+        var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+        var user = authState.User;
+
+        if (user.Identity == null || !user.Identity.IsAuthenticated)
+        {
+            NavigationManager.NavigateTo("/Identity/Account/Login", true);
+            return;
+        }
+
+        var userId = user.FindFirst(c => c.Type == ClaimTypes.NameIdentifier)?.Value;
+        if (userId == null)
+        {
+            NavigationManager.NavigateTo("/Identity/Account/Login", true);
+            return;
+        }
+
+        availabilityModel.UserID = userId;
+        await LoadAvailability();
+        await LoadTournaments();
+        BuildCalendar();
+    }
+
+    private async Task LoadAvailability()
+    {
+        using var context = DbFactory.CreateDbContext();
+        var sql = "SELECT * FROM OfficialAvailability WHERE UserID = @p0 AND MONTH(Date) = @p1 AND YEAR(Date) = @p2";
+        var availabilities = await context.OfficialAvailability.FromSqlRaw(sql, availabilityModel.UserID, currentMonth.Month, currentMonth.Year).ToListAsync();
+
+        availability = availabilities.ToDictionary(a => a.Date, a => a);
+    }
+
+    private async Task LoadTournaments()
+    {
+        using var context = DbFactory.CreateDbContext();
+        var sql = "SELECT * FROM Tournaments WHERE MONTH(TournamentDate) = @p0 AND YEAR(TournamentDate) = @p1";
+        var tournamentList = await context.Tournaments.FromSqlRaw(sql, currentMonth.Month, currentMonth.Year).ToListAsync();
+
+        foreach (var tournament in tournamentList)
+        {
+            if (!tournaments.ContainsKey(tournament.TournamentDate))
+            {
+                tournaments[tournament.TournamentDate] = new List<Tournaments>();
+            }
+            tournaments[tournament.TournamentDate].Add(tournament);
+        }
+    }
+
+    private void BuildCalendar()
+    {
+        calendar.Clear();
+        var firstDayOfMonth = new DateTime(currentMonth.Year, currentMonth.Month, 1);
+        var firstDayOfWeek = firstDayOfMonth.AddDays(-(int)firstDayOfMonth.DayOfWeek);
+        var daysInMonth = DateTime.DaysInMonth(currentMonth.Year, currentMonth.Month);
+
+        for (int week = 0; week < 6; week++)
+        {
+            var weekDays = new List<DateTime>();
+            for (int day = 0; day < 7; day++)
+            {
+                var currentDay = firstDayOfWeek.AddDays(week * 7 + day);
+                if (currentDay.Month == currentMonth.Month)
+                {
+                    weekDays.Add(currentDay);
+                }
+                else
+                {
+                    weekDays.Add(DateTime.MinValue);
+                }
+            }
+            calendar.Add(weekDays);
+        }
+    }
+
+    private async Task PreviousMonth()
+    {
+        currentMonth = currentMonth.AddMonths(-1);
+        await LoadAvailability();
+        await LoadTournaments();
+        BuildCalendar();
+    }
+
+    private async Task NextMonth()
+    {
+        currentMonth = currentMonth.AddMonths(1);
+        await LoadAvailability();
+        await LoadTournaments();
+        BuildCalendar();
+    }
+
+    private void SelectDay(DateTime day)
+    {
+        if (day == DateTime.MinValue) return;
+
+        selectedDay = day;
+        if (availability.TryGetValue(day, out var avail))
+        {
+            availabilityModel = avail;
+        }
+        else
+        {
+            availabilityModel = new OfficialAvailability { UserID = availabilityModel.UserID, Date = day };
+        }
+    }
+
+    private void CloseModal()
+    {
+        selectedDay = DateTime.MinValue;
+    }
+
+    private async Task SaveAvailability()
+    {
+        using var context = DbFactory.CreateDbContext();
+        string sql = "SELECT * FROM OfficialAvailability WHERE UserID = @p0 AND Date = @p1";
+        OfficialAvailability existingAvailability = await context.OfficialAvailability.FromSqlRaw(sql, availabilityModel.UserID, availabilityModel.Date).FirstOrDefaultAsync();
+
+        if (existingAvailability != null)
+        {
+            sql = "UPDATE OfficialAvailability SET Morning = @p0, Afternoon = @p1, Evening = @p2 WHERE UserID = @p3 AND Date = @p4";
+            await context.Database.ExecuteSqlRawAsync(sql, availabilityModel.Morning, availabilityModel.Afternoon, availabilityModel.Evening, availabilityModel.UserID, availabilityModel.Date);
+        }
+        else
+        {
+            sql = "INSERT INTO OfficialAvailability (UserID, Date, Morning, Afternoon, Evening) VALUES (@p0, @p1, @p2, @p3, @p4)";
+            await context.Database.ExecuteSqlRawAsync(sql, availabilityModel.UserID, availabilityModel.Date, availabilityModel.Morning, availabilityModel.Afternoon, availabilityModel.Evening);
+        }
+
+        await context.SaveChangesAsync();
+        await LoadAvailability();
+        CloseModal();
+    }
+
+}

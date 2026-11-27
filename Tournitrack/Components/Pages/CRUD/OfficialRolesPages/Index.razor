@@ -1,0 +1,45 @@
+﻿@page "/officialroles"
+@using Microsoft.EntityFrameworkCore
+@using Microsoft.AspNetCore.Components.QuickGrid
+@using Tournitrack.Data.Models
+@using Tournitrack.Data
+@implements IAsyncDisposable
+@inject IDbContextFactory<Tournitrack.Data.ApplicationDbContext> DbFactory
+
+<PageTitle>Index</PageTitle>
+
+<h1>Index</h1>
+
+<p>
+    <a href="officialroles/create">Create New</a>
+</p>
+
+<!-- QuickGrid to display the list of official roles -->
+<QuickGrid Class="table" Items="officialRolesList.AsQueryable()">
+    <PropertyColumn Property="officialroles => officialroles.RoleName" />
+
+    <TemplateColumn Context="officialroles">
+        <a href="@($"officialroles/edit?id={officialroles.ID}")">Edit</a> |
+        <a href="@($"officialroles/details?id={officialroles.ID}")">Details</a> |
+        <a href="@($"officialroles/delete?id={officialroles.ID}")">Delete</a>
+    </TemplateColumn>
+</QuickGrid>
+
+@code {
+    private List<OfficialRoles> officialRolesList = new();
+
+    // Method to initialize the component and load official roles details
+    protected override async Task OnInitializedAsync()
+    {
+        using var context = DbFactory.CreateDbContext();
+        // Get official roles details using raw SQL
+        string sql = "SELECT * FROM OfficialRoles";
+        officialRolesList = await context.OfficialRoles.FromSqlRaw(sql).ToListAsync();
+    }
+
+    // Method to dispose the DbContext
+    public async ValueTask DisposeAsync()
+    {
+        await DbFactory.CreateDbContext().DisposeAsync();
+    }
+}

@@ -1,0 +1,44 @@
+﻿@page "/poolsteams"
+@using Microsoft.EntityFrameworkCore
+@using Microsoft.AspNetCore.Components.QuickGrid
+@using Tournitrack.Data.Models
+@using Tournitrack.Data
+@implements IAsyncDisposable
+@inject IDbContextFactory<Tournitrack.Data.ApplicationDbContext> DbFactory
+
+<PageTitle>Index</PageTitle>
+
+<h1>Index</h1>
+
+<p>
+    <a href="poolsteams/create">Create New</a>
+</p>
+
+<!-- QuickGrid to display the list of PoolsTeams -->
+<QuickGrid Class="table" Items="poolsTeams.AsQueryable()">
+    <PropertyColumn Property="poolsteams => poolsteams.PoolID" />
+    <PropertyColumn Property="poolsteams => poolsteams.TeamID" />
+
+    <TemplateColumn Context="poolsteams">
+        <a href="@($"poolsteams/edit?id={poolsteams.ID}")">Edit</a> |
+        <a href="@($"poolsteams/details?id={poolsteams.ID}")">Details</a> |
+        <a href="@($"poolsteams/delete?id={poolsteams.ID}")">Delete</a>
+    </TemplateColumn>
+</QuickGrid>
+
+@code {
+    private ApplicationDbContext context = default!;
+    private List<PoolsTeams> poolsTeams = new();
+
+    // Method to initialize the component and load the list of PoolsTeams
+    protected override async Task OnInitializedAsync()
+    {
+        context = DbFactory.CreateDbContext();
+        // SQL query to get the list of PoolsTeams
+        string sql = "SELECT * FROM PoolTeams";
+        poolsTeams = await context.PoolTeams.FromSqlRaw(sql).ToListAsync();
+    }
+
+    // Dispose the DbContext when the component is disposed
+    public async ValueTask DisposeAsync() => await context.DisposeAsync();
+}

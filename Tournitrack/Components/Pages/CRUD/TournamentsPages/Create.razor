@@ -1,0 +1,59 @@
+﻿@page "/tournaments/create"
+@rendermode InteractiveServer
+@using Microsoft.EntityFrameworkCore
+@using Tournitrack.Data.Models
+@inject IDbContextFactory<Tournitrack.Data.ApplicationDbContext> DbFactory
+@inject NavigationManager NavigationManager
+
+<PageTitle>Create</PageTitle>
+
+<h1>Create</h1>
+
+<h2>Tournaments</h2>
+<hr />
+<div class="row">
+    <div class="col-md-4">
+        <!-- EditForm for creating a new Tournaments entry -->
+        <EditForm method="post" Model="Tournaments" OnValidSubmit="AddTournaments" FormName="create" Enhance>
+            <DataAnnotationsValidator />
+            <ValidationSummary class="text-danger" />
+            <div class="mb-3">
+                <label for="tournamentname" class="form-label">TournamentName:</label>
+                <InputText id="tournamentname" @bind-Value="Tournaments.TournamentName" class="form-control" />
+                <ValidationMessage For="() => Tournaments.TournamentName" class="text-danger" />
+            </div>
+            <div class="mb-3">
+                <label for="location" class="form-label">Location:</label>
+                <InputText id="location" @bind-Value="Tournaments.Location" class="form-control" />
+                <ValidationMessage For="() => Tournaments.Location" class="text-danger" />
+            </div>
+            <div class="mb-3">
+                <label for="tournamentDate" class="form-label">Date:</label>
+                <InputDate id="tournamentDate" @bind-value="Tournaments.TournamentDate" />
+                <ValidationMessage For="() => Tournaments.TournamentDate" class="text-danger" />
+            </div>
+            <button type="submit" class="btn btn-primary">Create</button>
+        </EditForm>
+    </div>
+</div>
+
+<div>
+    <a href="/tournaments">Back to List</a>
+</div>
+
+@code {
+    [SupplyParameterFromForm]
+    private Tournaments Tournaments { get; set; } = new(); // Model for Tournaments
+
+    // Method to add a new Tournaments entry to the database
+    private async Task AddTournaments()
+    {
+        using var context = DbFactory.CreateDbContext();
+        // SQL query to insert a new Tournaments entry
+        var sql = "INSERT INTO Tournaments (TournamentName, TournamentDate, Location) VALUES (@p0, @p1, @p2)";
+        await context.Database.ExecuteSqlRawAsync(sql, Tournaments.TournamentName, Tournaments.TournamentDate, Tournaments.Location);
+        // Navigate back to the list page after creating the entry
+        NavigationManager.NavigateTo("/tournaments");
+    }
+}
+

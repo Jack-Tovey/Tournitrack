@@ -1,0 +1,81 @@
+﻿@page "/tournamentofficials/delete"
+@rendermode InteractiveServer
+@using Microsoft.EntityFrameworkCore
+@using Tournitrack.Data.Models
+@inject IDbContextFactory<Tournitrack.Data.ApplicationDbContext> DbFactory
+@inject NavigationManager NavigationManager
+
+<PageTitle>Delete</PageTitle>
+
+<h1>Delete</h1>
+
+<p>Are you sure you want to delete this?</p>
+<div>
+    <h2>TournamentOfficials</h2>
+    <hr />
+    @if (tournamentofficials is null)
+    {
+        <p><em>Loading...</em></p>
+    }
+    else
+    {
+        <dl class="row">
+            <dt class="col-sm-2">TournamentID</dt>
+            <dd class="col-sm-10">@tournamentofficials.TournamentID</dd>
+        </dl>
+        <dl class="row">
+            <dt class="col-sm-2">UserID</dt>
+            <dd class="col-sm-10">@tournamentofficials.UserID - @userName</dd>
+        </dl>
+        <dl class="row">
+            <dt class="col-sm-2">RoleID</dt>
+            <dd class="col-sm-10">@tournamentofficials.RoleID - @roleName</dd>
+        </dl>
+        <!-- Button for deleting a TournamentOfficials entry -->
+        <EditForm method="post" Model="tournamentofficials" OnValidSubmit="DeleteTournamentOfficials" FormName="delete" Enhance>
+            <button type="submit" class="btn btn-danger" disabled="@(tournamentofficials is null)">Delete</button> |
+            <a href="/tournamentofficials">Back to List</a>
+        </EditForm>
+    }
+</div>
+
+@code {
+    private TournamentOfficials? tournamentofficials;
+    private string userName = string.Empty;
+    private string roleName = string.Empty;
+
+    [SupplyParameterFromQuery]
+    private int ID { get; set; }
+
+    // Method to initialize the component and load the TournamentOfficials entry to be deleted
+    protected override async Task OnInitializedAsync()
+    {
+        using var context = DbFactory.CreateDbContext();
+        // SQL query to get the TournamentOfficials entry by ID
+        tournamentofficials = await context.TournamentOfficials.FromSqlRaw("SELECT * FROM TournamentOfficials WHERE ID = @p0", ID).FirstOrDefaultAsync();
+
+        if (tournamentofficials is null)
+        {
+            NavigationManager.NavigateTo("notfound");
+        }
+        else
+        {
+            // SQL query to get the user name by UserID
+            userName = await context.Users.FromSqlRaw("SELECT UserName FROM AspNetUsers WHERE Id = @p0", tournamentofficials.UserID).Select(u => u.UserName).FirstOrDefaultAsync() ?? "Unknown";
+
+            // SQL query to get the role name by RoleID
+            roleName = await context.OfficialRoles.FromSqlRaw("SELECT RoleName FROM OfficialRoles WHERE ID = @p0", tournamentofficials.RoleID).Select(r => r.RoleName).FirstOrDefaultAsync() ?? "Unknown";
+        }
+    }
+
+    // Method to delete the TournamentOfficials entry from the database
+    private async Task DeleteTournamentOfficials()
+    {
+        using var context = DbFactory.CreateDbContext();
+        // SQL query to delete the TournamentOfficials entry by ID
+        await context.Database.ExecuteSqlRawAsync("DELETE FROM TournamentOfficials WHERE ID = @p0", tournamentofficials!.ID);
+        // Navigate back to the list page after deleting the entry
+        NavigationManager.NavigateTo("/tournamentofficials");
+    }
+}
+

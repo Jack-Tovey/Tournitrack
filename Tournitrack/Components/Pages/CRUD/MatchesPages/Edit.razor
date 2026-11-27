@@ -1,0 +1,209 @@
+﻿@page "/matches/edit"
+@rendermode InteractiveServer
+@using Microsoft.EntityFrameworkCore
+@using Tournitrack.Data.Models
+@inject IDbContextFactory<Tournitrack.Data.ApplicationDbContext> DbFactory
+@inject NavigationManager NavigationManager
+
+<PageTitle>Edit</PageTitle>
+
+<h1>Edit</h1>
+
+<h2>Matches</h2>
+<hr />
+@if (Matches is null)
+{
+    <p><em>Loading...</em></p>
+}
+else
+{
+    <div class="row">
+        <div class="col-md-4">
+            <!-- Form to edit the match details -->
+            <EditForm method="post" Model="Matches" OnValidSubmit="UpdateMatches" FormName="edit" Enhance>
+                <DataAnnotationsValidator />
+                <ValidationSummary role="alert" />
+                <input type="hidden" name="Matches.ID" value="@Matches.ID" />
+                <!-- TournamentID Input -->
+                <div class="mb-3">
+                    <label for="tournamentid" class="form-label">TournamentID:</label>
+                    <InputNumber id="tournamentid" @bind-Value="Matches.TournamentID" class="form-control" />
+                    <ValidationMessage For="() => Matches.TournamentID" class="text-danger" />
+                </div>
+                <!-- ScheduledMatch DateTime Input -->
+                <div class="mb-3">
+                    <label for="scheduledmatchdatetime" class="form-label">ScheduledMatchDateTime:</label>
+                    <InputDate id="scheduledmatchdatetime" @bind-Value="Matches.ScheduledMatchDateTime" class="form-control" />
+                    <ValidationMessage For="() => Matches.ScheduledMatchDateTime" class="text-danger" />
+                </div>
+                <!-- Actual DateTime input -->
+                <div class="mb-3">
+                    <label for="actualmatchdatetime" class="form-label">ActualMatchDateTime:</label>
+                    <InputDate id="actualmatchdatetime" @bind-Value="Matches.ActualMatchDateTime" class="form-control" />
+                    <ValidationMessage For="() => Matches.ActualMatchDateTime" class="text-danger" />
+                </div>
+                <!-- Home Team selection drop down -->
+                <div class="mb-3">
+                    <label for="teamidhome" class="form-label">Home Team:</label>
+                    <select id="teamidhome" @bind="Matches.TeamIDHome" class="form-control">
+                        <option value="">Select Home Team</option>
+                        @foreach (Clubs club in Clubs)
+                        {
+                            <optgroup label="@club.Name">
+                                @foreach (Teams team in Teams.Where(t => t.ClubID == club.ID))
+                                {
+                                    <option value="@team.ID">@team.TeamName</option>
+                                }
+                            </optgroup>
+                        }
+                    </select>
+                    <ValidationMessage For="() => Matches.TeamIDHome" class="text-danger" />
+                </div>
+                <!-- Home team Sheet ID Input -->
+                <div class="mb-3">
+                    <label for="hometeamsheetid" class="form-label">HomeTeamSheetID:</label>
+                    <InputNumber id="hometeamsheetid" @bind-Value="Matches.HomeTeamSheetID" class="form-control" />
+                    <ValidationMessage For="() => Matches.HomeTeamSheetID" class="text-danger" />
+                </div>
+                <!-- Away Team selection drop down -->
+                <div class="mb-3">
+                    <label for="teamidaway" class="form-label">Away Team:</label>
+                    <select id="teamidaway" @bind="Matches.TeamIDAway" class="form-control">
+                        <option value="">Select Away Team</option>
+                        @foreach (Clubs club in Clubs)
+                        {
+                            <optgroup label="@club.Name">
+                                @foreach (Teams team in Teams.Where(t => t.ClubID == club.ID))
+                                {
+                                    <option value="@team.ID">@team.TeamName</option>
+                                }
+                            </optgroup>
+                        }
+                    </select>
+                    <ValidationMessage For="() => Matches.TeamIDAway" class="text-danger" />
+                </div>
+                <!-- Away team sheet id input -->
+                <div class="mb-3">
+                    <label for="awayteamsheetid" class="form-label">AwayTeamSheetID:</label>
+                    <InputNumber id="awayteamsheetid" @bind-Value="Matches.AwayTeamSheetID" class="form-control" />
+                    <ValidationMessage For="() => Matches.AwayTeamSheetID" class="text-danger" />
+                </div>
+                <!-- Pitch number input -->
+                <div class="mb-3">
+                    <label for="pitchnumber" class="form-label">PitchNumber:</label>
+                    <InputNumber id="pitchnumber" @bind-Value="Matches.PitchNumber" class="form-control" />
+                    <ValidationMessage For="() => Matches.PitchNumber" class="text-danger" />
+                </div>
+                <!-- Pool ID Input -->
+                <div class="mb-3">
+                    <label for="poolid" class="form-label">PoolID:</label>
+                    <InputNumber id="poolid" @bind-Value="Matches.PoolID" class="form-control" />
+                    <ValidationMessage For="() => Matches.PoolID" class="text-danger" />
+                </div>
+                <!-- Description Input -->
+                <div class="mb-3">
+                    <label for="description" class="form-label">Description:</label>
+                    <InputText id="description" @bind-Value="Matches.Description" class="form-control" />
+                    <ValidationMessage For="() => Matches.Description" class="text-danger" />
+                </div>
+                <!-- Game Length Input -->
+                <div class="mb-3">
+                    <label for="gamelength" class="form-label">GameLength:</label>
+                    <InputNumber id="gamelength" @bind-Value="Matches.GameLength" class="form-control" />
+                    <ValidationMessage For="() => Matches.GameLength" class="text-danger" />
+                </div>
+                <!-- Match complete bool input -->
+                <div class="mb-3">
+                    <label for="matchcomplete" class="form-label">MatchComplete:</label>
+                    <InputCheckbox id="matchcomplete" @bind-Value="Matches.MatchComplete" class="form-check-input" />
+                    <ValidationMessage For="() => Matches.MatchComplete" class="text-danger" />
+                </div>
+                <!-- Result needed bool input -->
+                <div class="mb-3">
+                    <label for="resultneeded" class="form-label">ResultNeeded:</label>
+                    <InputCheckbox id="resultneeded" @bind-Value="Matches.ResultNeeded" class="form-check-input" />
+                    <ValidationMessage For="() => Matches.ResultNeeded" class="text-danger" />
+                </div>
+                <!-- Submit Button -->
+                <button type="submit" class="btn btn-primary">Save</button>
+            </EditForm>
+        </div>
+    </div>
+}
+
+<div>
+    <a href="/matches">Back to List</a>
+</div>
+
+@code {
+    [SupplyParameterFromQuery]
+    private int ID { get; set; } // Match ID from URL
+
+    [SupplyParameterFromForm]
+    private Matches? Matches { get; set; }
+
+    private List<Teams> Teams { get; set; } = new();
+    private List<Clubs> Clubs { get; set; } = new();
+
+
+    protected override async Task OnInitializedAsync()
+    {
+        using var context = DbFactory.CreateDbContext();
+        // Get match details
+        string matchSql = "SELECT * FROM Matches WHERE ID = @p0";
+        Matches = await context.Matches.FromSqlRaw(matchSql, ID).FirstOrDefaultAsync();
+
+        if (Matches is null)
+        {
+            NavigationManager.NavigateTo("notfound");
+            return;
+        }
+
+        // Get team details
+        string teamsSql = "SELECT * FROM Teams";
+        Teams = await context.Teams.FromSqlRaw(teamsSql).ToListAsync();
+
+        // Get club details
+        string clubsSql = "SELECT * FROM Clubs";
+        Clubs = await context.Clubs.FromSqlRaw(clubsSql).ToListAsync();
+    }
+
+
+    private async Task UpdateMatches() //Update existing record in DB
+    {
+        using var context = DbFactory.CreateDbContext();
+        string sql = @"
+            UPDATE Matches SET
+                TournamentID = @p0,
+                ScheduledMatchDateTime = @p1,
+                ActualMatchDateTime = @p2,
+                TeamIDHome = @p3,
+                HomeTeamSheetID = @p4,
+                TeamIDAway = @p5,
+                AwayTeamSheetID = @p6,
+                PitchNumber = @p7,
+                PoolID = @p8,
+                Description = @p9,
+                GameLength = @p10,
+                MatchComplete = @p11,
+                ResultNeeded = @p12
+            WHERE ID = @p13";
+        await context.Database.ExecuteSqlRawAsync(sql,
+            Matches.TournamentID,
+            Matches.ScheduledMatchDateTime,
+            Matches.ActualMatchDateTime,
+            Matches.TeamIDHome,
+            Matches.HomeTeamSheetID,
+            Matches.TeamIDAway,
+            Matches.AwayTeamSheetID,
+            Matches.PitchNumber,
+            Matches.PoolID,
+            Matches.Description,
+            Matches.GameLength,
+            Matches.MatchComplete,
+            Matches.ResultNeeded,
+            Matches.ID);
+
+        NavigationManager.NavigateTo("/matches"); // Redirect to the matches list page after updating the match
+    }
+}

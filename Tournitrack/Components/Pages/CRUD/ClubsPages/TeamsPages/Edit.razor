@@ -1,0 +1,72 @@
+﻿@page "/clubs/teams/edit"
+@rendermode InteractiveServer
+@using Microsoft.EntityFrameworkCore
+@using Tournitrack.Data.Models
+@inject IDbContextFactory<Tournitrack.Data.ApplicationDbContext> DbFactory
+@inject NavigationManager NavigationManager
+
+<PageTitle>Edit</PageTitle>
+
+<h1>Edit</h1>
+
+<h2>Teams</h2>
+<hr />
+@if (Teams is null)
+{
+    <p><em>Loading...</em></p>
+}
+else
+{
+    <div class="row">
+        <div class="col-md-4">
+            <EditForm method="post" Model="Teams" OnValidSubmit="UpdateTeams" FormName="edit" Enhance>
+                <DataAnnotationsValidator />
+                <ValidationSummary role="alert"/>
+                <input type="hidden" name="Teams.ID" value="@Teams.ID" />
+                <div class="mb-3">
+                    <label for="teamname" class="form-label">TeamName:</label>
+                    <InputText id="teamname" @bind-Value="Teams.TeamName" class="form-control" />
+                    <ValidationMessage For="() => Teams.TeamName" class="text-danger" />
+                </div>
+                <div class="mb-3">
+                    <label for="clubid" class="form-label">ClubID:</label>
+                    <InputNumber id="clubid" @bind-Value="Teams.ClubID" class="form-control" />
+                    <ValidationMessage For="() => Teams.ClubID" class="text-danger" />
+                </div>
+                <button type="submit" class="btn btn-primary">Save</button>
+            </EditForm>
+        </div>
+    </div>
+}
+
+<div>
+    <a href="/teams">Back to List</a>
+</div>
+
+@code {
+    [SupplyParameterFromQuery]
+    private int ID { get; set; }
+
+    [SupplyParameterFromForm]
+    private Teams? Teams { get; set; }
+
+    protected override async Task OnInitializedAsync()
+    {
+        using var context = DbFactory.CreateDbContext();
+        Teams ??= await context.Teams.FromSqlRaw("SELECT * FROM Teams WHERE ID = @p0", ID).FirstOrDefaultAsync();
+
+        if (Teams is null)
+        {
+            NavigationManager.NavigateTo("notfound");
+        }
+    }
+
+    private async Task UpdateTeams()
+    {
+        using var context = DbFactory.CreateDbContext();
+        string sql = "UPDATE Teams SET TeamName = @p0, ClubID = @p1 WHERE ID = @p2";
+        await context.Database.ExecuteSqlRawAsync(sql, Teams!.TeamName, Teams.ClubID, Teams.ID);
+
+        NavigationManager.NavigateTo("/ClubTeamManager");
+    }
+}

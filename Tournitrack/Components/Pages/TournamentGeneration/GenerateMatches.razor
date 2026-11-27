@@ -1,0 +1,326 @@
+﻿@page "/GenerateMatches"
+@rendermode InteractiveServer
+@using Microsoft.CodeAnalysis
+@using Microsoft.EntityFrameworkCore
+@using Microsoft.EntityFrameworkCore.Query
+@using Microsoft.VisualBasic
+@using Tournitrack.Data.Models
+@inject IDbContextFactory<Tournitrack.Data.ApplicationDbContext> DbFactory
+@inject NavigationManager NavigationManager
+
+
+
+@* IDEA INSTEAD OF BASING MATCH LENGTH ON LENGTH OF TIME AVALABILE, GIVE THE USER THE OPTION TO EDIT THE MATCH LENGTH AND INTERVAL, AND THEN BASE THE TOURNAMENT TIME ON THE MATCH LENGTH AND THE NUMBER OF MATCHES. - TODO *@
+@if (isLoading)
+{
+    <div class="loading">
+        <p>Generating matches, please wait...</p>
+        <div class="spinner-border" role="status">
+            <span class="visually-hidden">Loading...</span>
+        </div>
+    </div>
+}
+else
+{
+    @if (tournament != null)
+    {
+        <h3>Generate Matches for "@tournament.TournamentName"</h3>
+        <h6>What kind of Tournament do you want? Round Robin or MultiLeague leading to 1st V 1st etc.</h6>
+        <select class="form-control" @bind="Input.tournamentType">
+            <option value=0>Round Robin</option>
+            <option value=1>League</option>
+        </select>
+        <br/>
+        <h6>How many Pitches do you have?</h6>
+        <input class="form-control" type="number" min="1" step="1" placeholder="1" @bind="Input.pitchCount"/>
+        <br/>
+        <h6>How long do you want for each match including Half/Quarter time? (Mins)</h6>
+        <input class="form-control" type="number" min="1" step="1" placeholder="70" @bind="Input.matchLength"/>
+        <br/>
+        <h6>How long do you need between matches? (Mins)</h6>
+        <input class="form-control" type="number" min="0" step="5" placeholder="5" @bind="Input.changeOverTime"/>
+        <br/>
+        <h6>What time does the tournament start? This will be the time of the first match.</h6>
+        <input class="form-control" type="time" @bind="Input.tournamentStartTime"/>
+        @if (Input.tournamentType == 0)
+        {
+            <h6>Round Robin Tournament</h6>
+            int matchCount = (TeamsList.Count - 1) * TeamsList.Count / 2;
+            int roundCount = (int)Math.Ceiling((double)matchCount / Input.pitchCount);
+            double ChangeOverTimeTotal = Input.changeOverTime * roundCount;
+            double matchLengthTotal = Input.matchLength * roundCount;
+            double tournamentTime = ChangeOverTimeTotal + matchLengthTotal;
+            TimeOnly tournamentEndTime = Input.tournamentStartTime.AddMinutes(tournamentTime);
+            <br/>
+            <h7>The tournament will finish at @tournamentEndTime</h7>
+        }
+        else if (Input.tournamentType == 1)
+        {
+            //Calculating Pools - TODO
+            <h6>League Tournament</h6>
+            <h7>How many teams per pool?</h7>
+            <input class="form-control" type="number" min="1" step="1" placeholder="1" @bind="Input.teamsPerPoolCount"/>
+            <br/>
+            int poolCount = TeamsList.Count / Input.teamsPerPoolCount;
+            <h7> You will have @poolCount pools with this Team Count per pool.</h7>
+            <br/>
+            int matchCount = (Input.teamsPerPoolCount - 1) * Input.teamsPerPoolCount / 2;
+            int roundCount = (int)Math.Ceiling((double)matchCount / Input.pitchCount);
+            double ChangeOverTimeTotal = Input.changeOverTime * roundCount;
+            double matchLengthTotal = Input.matchLength * roundCount;
+            double tournamentTime = ChangeOverTimeTotal + matchLengthTotal;
+            TimeOnly tournamentEndTime = Input.tournamentStartTime.AddMinutes(tournamentTime);
+            <br/>
+            <h7>Phase 1 of the tournament will finish at @tournamentEndTime</h7>
+
+        }
+
+        <br/>
+        <button class="btn btn-primary" @onclick="GenMatches">Generate Matches</button>
+    }
+    else
+    {
+        <div class="loading">
+            <p>Generating matches, please wait...</p>
+            <div class="spinner-border" role="status">
+                <span class="visually-hidden">Loading...</span>
+            </div>
+        </div>
+    }
+}
+
+@code {
+    private bool isLoading = false;
+    public void GenMatches()
+    {
+        isLoading = true;
+        //Get team count and pitch count, check if team count is odd, if so add a BYE team
+        int teamCount = TeamsList.Count;
+        int pitchCount = Input.pitchCount;
+        List<Matches> matches = new List<Matches>();
+
+        if (Input.tournamentType == 0)
+        {
+            // Round Robin Algorithm - Play everyone once
+            List<int> teamIDs = TeamsList.Select(t => t.ID).ToList();
+            matches = GenerateRoundRobin(teamCount, pitchCount, teamIDs, -1);
+        }
+        else if (Input.tournamentType == 1)
+        {
+            if (teamCount % (TeamsList.Count / Input.teamsPerPoolCount) != 0)
+            {
+                // Add a BYE team
+                teamCount++;
+                TeamsList.Add(new Teams { TeamName = "BYE", ClubID = 0 });
+            }
+            // League Algorithm - Play everyone twice, Home and Away
+            matches = GenerateLeague(teamCount, pitchCount, Input.teamsPerPoolCount);
+        }
+        foreach (Matches match in matches)
+        {
+            // Add matches to the database
+            using var context = DbFactory.CreateDbContext();
+            context.Matches.Add(match);
+            context.SaveChanges();
+        }
+        NavigationManager.NavigateTo($"/matchschedule?TournamentID={tournament.ID}");
+    }
+
+    public List<Matches> GenerateRoundRobin(int teamCount, int pitchCount, List<int> teamIDs, int? PoolID)
+    {
+        using var context = DbFactory.CreateDbContext();
+        // Round Robin Algorithm - Play everyone once - Match Generation and Times now working.
+        List<Matches> matches = new List<Matches>();
+        //Match Generation
+        int numberOfRounds = teamCount - 1;
+        int matchesPerRound = teamCount / 2;
+        DateTime currentMatchTime = new DateTime(tournament.TournamentDate.Year, tournament.TournamentDate.Month, tournament.TournamentDate.Day, Input.tournamentStartTime.Hour, Input.tournamentStartTime.Minute, 0);
+        int matchCounter = 0;
+
+        for (int round = 0; round < numberOfRounds; round++)
+        {
+            for (int match = 0; match < matchesPerRound; match++)
+            {
+                int home = (round + match) % (teamCount - 1);
+                int away = (teamCount - 1 - match + round) % (teamCount - 1);
+
+                // Last team stays in the same place while the others rotate around it
+                if (match == 0)
+                {
+                    away = teamCount - 1;
+                }
+
+                int PoolNumber = context.Pools.FromSqlRaw("SELECT PoolNumber FROM Pools WHERE ID = @p0", PoolID).Select(i => i.PoolNumber).FirstOrDefault();
+                if (PoolNumber != 0)
+                {
+                    matches.Add(new Matches
+                    {
+                        TournamentID = tournament.ID,
+                        TeamIDHome = teamIDs[home],
+                        TeamIDAway = teamIDs[away],
+                        ScheduledMatchDateTime = currentMatchTime,
+                        PitchNumber = matchCounter + 1,
+                        PoolID = PoolID,
+                        GameLength = Input.matchLength,
+                        Description = $"Pool {PoolNumber}",
+                        MatchComplete = false
+                    });
+                }
+                else
+                {
+                    matches.Add(new Matches
+                        {
+                            TournamentID = tournament.ID,
+                            TeamIDHome = teamIDs[home],
+                            TeamIDAway = teamIDs[away],
+                            ScheduledMatchDateTime = currentMatchTime,
+                            PitchNumber = matchCounter + 1,
+                            PoolID = PoolID,
+                            GameLength = Input.matchLength,
+                            Description = "",
+                            MatchComplete = false
+                        });
+                }
+
+                if (pitchCount >= 2)
+                {
+                    matchCounter++;
+                    if (matchCounter == pitchCount)
+                    {
+                        matchCounter = 0;
+                        currentMatchTime = currentMatchTime.AddMinutes(Input.matchLength + Input.changeOverTime);
+                    }
+                }
+                if (pitchCount == 1)
+                {
+                    currentMatchTime = currentMatchTime.AddMinutes(Input.matchLength + Input.changeOverTime);
+                }
+            }
+        }
+
+        return matches;
+    }
+
+    public List<Matches> GenerateLeague(int teamCount, int pitchCount, int teamPoolCount)
+    {
+        using var context = DbFactory.CreateDbContext();
+        List<Matches> matches = new List<Matches>();
+        List<int> poolsID = new List<int>();
+
+        int poolCount = (teamCount + teamPoolCount - 1) / teamPoolCount; // Ensure all teams are assigned
+
+        // Create pools
+        for (int i = 0; i < poolCount; i++)
+        {
+            int poolNumber = i + 1;
+            string sql = "INSERT INTO Pools (TournamentID, PoolNumber, PhaseNumber) VALUES (@p0, @p1, @p2)";
+            context.Database.ExecuteSqlRaw(sql, tournament.ID, poolNumber, 1);
+
+            sql = "SELECT ID FROM Pools WHERE TournamentID = @p0 AND PoolNumber = @p1 AND PhaseNumber = @p2";
+            int poolID = context.Pools.FromSqlRaw(sql, tournament.ID, poolNumber, 1).Select(p => p.ID).FirstOrDefault();
+            poolsID.Add(poolID);
+        }
+
+        // Assign teams to pools in a round-robin manner
+        int poolIndex = 0;
+        foreach (Teams team in TeamsList)
+        {
+            string sql = "INSERT INTO PoolTeams (PoolID, TeamID, Points, GoalsFor, GoalsAgainst, GoalDifference, GamesPlayed) VALUES (@p0, @p1, @p2, @p3, @p4, @p5, @p6)";
+            context.Database.ExecuteSqlRaw(sql, poolsID[poolIndex], team.ID, 0, 0, 0, 0, 0);
+            poolIndex = (poolIndex + 1) % poolsID.Count;
+        }
+
+        // Dictionary to hold matches for each pool
+        Dictionary<int, List<Matches>> poolMatches = new Dictionary<int, List<Matches>>();
+        foreach (int poolID in poolsID)
+        {
+            string sql = "SELECT TeamID FROM PoolTeams WHERE PoolID = @p0";
+            List<int> poolTeamIDs = context.PoolTeams.FromSqlRaw(sql, poolID).Select(pt => pt.TeamID).ToList();
+
+            sql = "SELECT PoolNumber FROM Pools WHERE ID = @p0";
+            int poolNumber = context.Pools.FromSqlRaw(sql, poolID).Select(p => p.PoolNumber).FirstOrDefault();
+
+            List<Matches> tempPoolMatches = GenerateRoundRobin(teamPoolCount, pitchCount, poolTeamIDs, poolID);
+            poolMatches.Add(poolID, tempPoolMatches);
+        }
+
+        // Track pitch availability
+        Dictionary<int, DateTime> pitchAvailability = new Dictionary<int, DateTime>();
+        for (int p = 1; p <= pitchCount; p++)
+        {
+            pitchAvailability[p] = new DateTime(
+                tournament.TournamentDate.Year,
+                tournament.TournamentDate.Month,
+                tournament.TournamentDate.Day,
+                Input.tournamentStartTime.Hour,
+                Input.tournamentStartTime.Minute,
+                0
+            );
+        }
+
+        List<Matches> scheduledMatches = new List<Matches>();
+
+        // Schedule matches evenly across pitches
+        while (poolMatches.Values.Any(pm => pm.Count > 0))
+        {
+            foreach (int poolID in poolsID)
+            {
+                if (poolMatches[poolID].Count > 0)
+                {
+                    // Find the earliest available pitch
+                    var earliestPitch = pitchAvailability.OrderBy(p => p.Value).First();
+                    int assignedPitch = earliestPitch.Key;
+                    DateTime matchStartTime = earliestPitch.Value;
+
+                    // Get next match for this pool
+                    Matches match = poolMatches[poolID].First();
+                    match.ScheduledMatchDateTime = matchStartTime;
+                    match.PitchNumber = assignedPitch;
+                    scheduledMatches.Add(match);
+                    poolMatches[poolID].RemoveAt(0);
+
+                    // Update pitch availability
+                    pitchAvailability[assignedPitch] = matchStartTime.AddMinutes(Input.matchLength + Input.changeOverTime);
+                }
+            }
+        }
+
+        return scheduledMatches;
+    }
+
+    //Variable Initialisation
+    public class InputModel
+    {
+        public int tournamentType { get; set; }
+        public int pitchCount { get; set; }
+        public double tournamentTimeLength { get; set; }
+        public TimeOnly tournamentStartTime { get; set; }
+        public int changeOverTime { get; set; }
+        public int teamsPerPoolCount { get; set; }
+        public double matchLength { get; set; }
+    }
+    public InputModel Input { get; set; } = new InputModel();
+    private Tournaments? tournament;
+    private List<Teams> TeamsList;
+    double matchLength = 0.0;
+
+    [SupplyParameterFromQuery]
+    private int ID { get; set; }
+
+    protected override async Task OnInitializedAsync()
+    {
+        Input.pitchCount = 1;
+        Input.changeOverTime = 5;
+        Input.teamsPerPoolCount = 2;
+        using var context = DbFactory.CreateDbContext();
+        string sql = "SELECT * FROM Tournaments WHERE ID = @p0";
+        tournament = await context.Tournaments.FromSqlRaw(sql, ID).FirstOrDefaultAsync();
+        if (tournament is null)
+        {
+            NavigationManager.NavigateTo("notfound");
+        }
+        //CROSS TABLE PARAMETRISED SQL!!!!!!!!!!!!!
+        sql = "SELECT Teams.* FROM TournamentTeams, Teams WHERE TournamentID = @p0 AND TournamentTeams.TeamID = Teams.ID";
+        TeamsList = await context.Teams.FromSqlRaw(sql, ID).ToListAsync();
+    }
+}
